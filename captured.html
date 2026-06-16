@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InSave</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; background: #111; }
+      .toast {
+        position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%);
+        background: #222; color: #fff; padding: 14px 20px; border-radius: 10px;
+        font-size: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.4); opacity: 0;
+        transition: opacity .2s; max-width: 90vw; text-align: center;
+      }
+      .toast.show { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <!-- Inlined (no imports) so this page is fully self-contained and renders
+         offline from the SW shell cache without fetching a hashed JS bundle. -->
+    <script>
+      var MESSAGES = {
+        saved: "Saved. Tag it later.",
+        dup: "Already in InSave.",
+        unparsed: "Saved — needs a look later.",
+        error: "Couldn't save, try again."
+      };
+      var captureStatus = new URLSearchParams(location.search).get("status") || "saved";
+      var toast = document.getElementById("toast");
+      toast.textContent = MESSAGES[captureStatus] || MESSAGES.saved;
+
+      requestAnimationFrame(function () { toast.classList.add("show"); });
+
+      // Auto-dismiss and attempt to release the user back to where they came from.
+      var DISMISS_MS = captureStatus === "error" ? 2600 : 1500;
+      window.setTimeout(function () {
+        toast.classList.remove("show");
+        window.setTimeout(function () {
+          // Best-effort return; if launched standalone there's nowhere to go back to.
+          if (history.length > 1) history.back();
+        }, 250);
+      }, DISMISS_MS);
+
+      // Allow manual dismissal.
+      toast.addEventListener("click", function () {
+        if (history.length > 1) history.back();
+      });
+    </script>
+  </body>
+</html>
