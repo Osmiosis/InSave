@@ -48,3 +48,11 @@ Requires a real "Download Your Information" export from Instagram.
 - [ ] Skipped/dismissed items are NOT in D1 and generate no reminders, but remain in the local backlog (dormant).
 - [ ] Re-uploading the same export adds no duplicates ("N already saved" shown).
 - [ ] Confirm the real export's `saved_posts.json` structure matches `parse-saved-posts.ts`; adjust if Instagram changed field names.
+
+## PRD 02b — Backlog import format correction
+
+- [ ] Upload a real Instagram export `.zip`; the importer reads it (no "couldn't read" error).
+- [ ] Triage cards show the caption text and a `reel`/`post` badge per item.
+- [ ] An item with no caption renders without an empty caption line.
+- [ ] Promote an item; in D1 / pending sync its `description` equals the export caption.
+- [ ] Both reels (`/reel/`) and posts (`/p/`) appear in triage.

@@ -100,6 +100,10 @@ function renderGroup(group: AuthorGroup): HTMLElement {
 function renderItem(item: ImportedItem): HTMLElement {
   const li = document.createElement("li");
 
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.textContent = item.media_type;
+
   const link = document.createElement("a");
   link.href = item.canonical_url || "#";
   link.textContent = item.parse_ok ? item.canonical_url : "(unreadable link — needs review)";
@@ -120,7 +124,16 @@ function renderItem(item: ImportedItem): HTMLElement {
 
   li.appendChild(keepBtn);
   li.appendChild(skipBtn);
+  li.appendChild(badge);
   li.appendChild(link);
+
+  if (item.caption) {
+    const caption = document.createElement("p");
+    caption.className = "caption";
+    caption.textContent = item.caption;
+    li.appendChild(caption);
+  }
+
   return li;
 }
 
