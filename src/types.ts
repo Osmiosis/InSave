@@ -16,6 +16,11 @@ export interface PendingCapture {
   status: CaptureStatus;
   parse_ok: boolean;
   synced: boolean;       // local-only flag, not sent to backend as a column
+  // Import metadata / enrichment seam (undefined for share-captures).
+  saved_at?: number;
+  title?: string;
+  thumbnail?: string;
+  description?: string;
 }
 
 export type CaptureOutcome = "saved" | "dup" | "unparsed" | "error";
@@ -23,6 +28,31 @@ export type CaptureOutcome = "saved" | "dup" | "unparsed" | "error";
 export interface CaptureResult {
   status: CaptureOutcome;
   record?: PendingCapture;
+}
+
+export type BacklogState = "dormant" | "promoted";
+
+export interface ParsedSavedItem {
+  url: string;
+  author: string;
+  savedAt: number; // epoch ms (converted from the export's seconds)
+}
+
+export interface ImportedItem {
+  id: string;
+  canonical_url: string;
+  author: string;
+  saved_at: number;    // original Instagram save timestamp, epoch ms
+  imported_at: number; // when InSave ingested it, epoch ms
+  raw_payload: string; // JSON of the raw export entry
+  parse_ok: boolean;
+  backlog_state: BacklogState;
+}
+
+export interface EnrichmentResult {
+  title?: string;
+  thumbnail?: string;
+  description?: string;
 }
 
 export type { PendingStore } from "./pending-store";

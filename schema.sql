@@ -5,7 +5,11 @@ CREATE TABLE IF NOT EXISTS pending_capture (
   captured_at   INTEGER NOT NULL,
   source        TEXT NOT NULL,
   status        TEXT NOT NULL DEFAULT 'pending',
-  parse_ok      INTEGER NOT NULL DEFAULT 1
+  parse_ok      INTEGER NOT NULL DEFAULT 1,
+  saved_at      INTEGER,
+  title         TEXT,
+  thumbnail     TEXT,
+  description   TEXT
 );
 
 -- Dedupe key. Partial unique index so multiple parse_ok=false rows

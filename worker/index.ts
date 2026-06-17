@@ -6,6 +6,10 @@ interface WireRecord {
   source: string;
   status: string;
   parse_ok: boolean;
+  saved_at?: number;
+  title?: string;
+  thumbnail?: string;
+  description?: string;
 }
 
 interface Env {
@@ -34,20 +38,33 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
   const accepted: string[] = [];
   const stmt = env.DB.prepare(
     `INSERT INTO pending_capture
-       (id, canonical_url, raw_payload, captured_at, source, status, parse_ok)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+       (id, canonical_url, raw_payload, captured_at, source, status, parse_ok,
+        saved_at, title, thumbnail, description)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO NOTHING`,
   );
 
   for (const r of records) {
     try {
       await stmt
-        .bind(r.id, r.canonical_url, r.raw_payload, r.captured_at, r.source, r.status, r.parse_ok ? 1 : 0)
+        .bind(
+          r.id, r.canonical_url, r.raw_payload, r.captured_at, r.source, r.status,
+          r.parse_ok ? 1 : 0,
+          r.saved_at ?? null, r.title ?? null, r.thumbnail ?? null, r.description ?? null,
+        )
         .run();
-      accepted.push(r.id); // idempotent: a no-op conflict still counts as accepted
-    } catch {
-      // canonical_url unique conflict (same reel, different client id) — treat as accepted
       accepted.push(r.id);
+    } catch {
+      // The insert threw (e.g. canonical_url already present under a different id).
+      // Accept ONLY if the record is genuinely stored, so a real/transient failure
+      // stays unaccepted and the client retries it instead of losing it.
+      const existing = await env.DB.prepare(
+        `SELECT 1 FROM pending_capture
+         WHERE id = ? OR (canonical_url <> '' AND canonical_url = ?) LIMIT 1`,
+      )
+        .bind(r.id, r.canonical_url)
+        .first();
+      if (existing) accepted.push(r.id);
     }
   }
 

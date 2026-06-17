@@ -7,6 +7,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         captured: resolve(__dirname, "captured.html"),
+        importPage: resolve(__dirname, "import.html"),
         sw: resolve(__dirname, "src/sw.ts"),
         // captured.html uses an inlined script (no module entry needed)
       },

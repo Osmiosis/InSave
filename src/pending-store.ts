@@ -1,8 +1,5 @@
-import { openDB, type IDBPDatabase } from "idb";
+import { openInsaveDB, PENDING_STORE } from "./db";
 import type { PendingCapture } from "./types";
-
-const DB_NAME = "insave";
-const STORE = "pending_capture";
 
 export interface PendingStore {
   put(record: PendingCapture): Promise<void>;
@@ -12,32 +9,22 @@ export interface PendingStore {
 }
 
 export async function createPendingStore(): Promise<PendingStore> {
-  const db: IDBPDatabase = await openDB(DB_NAME, 1, {
-    upgrade(database) {
-      const os = database.createObjectStore(STORE, { keyPath: "id" });
-      os.createIndex("by_canonical_url", "canonical_url", { unique: false });
-    },
-  });
-
-  // Auto-close when another context requests a version change (e.g. deleteDatabase in tests)
-  db.addEventListener("versionchange", () => {
-    db.close();
-  });
+  const db = await openInsaveDB();
 
   return {
     async put(record) {
-      await db.put(STORE, record);
+      await db.put(PENDING_STORE, record);
     },
     async getByCanonicalUrl(canonicalUrl) {
       if (!canonicalUrl) return undefined;
-      return db.getFromIndex(STORE, "by_canonical_url", canonicalUrl);
+      return db.getFromIndex(PENDING_STORE, "by_canonical_url", canonicalUrl);
     },
     async listUnsynced() {
-      const all = (await db.getAll(STORE)) as PendingCapture[];
+      const all = (await db.getAll(PENDING_STORE)) as PendingCapture[];
       return all.filter((r) => !r.synced);
     },
     async markSynced(ids) {
-      const tx = db.transaction(STORE, "readwrite");
+      const tx = db.transaction(PENDING_STORE, "readwrite");
       for (const id of ids) {
         const r = (await tx.store.get(id)) as PendingCapture | undefined;
         if (r) await tx.store.put({ ...r, synced: true });

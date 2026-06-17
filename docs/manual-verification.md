@@ -28,3 +28,23 @@ These acceptance items require an installed PWA + live Instagram and cannot be u
 - `/share` is handled by the SW `fetch` interceptor (no server route); `/captured.html`,
   `/manifest.webmanifest`, `/sw.js`, and `/icons/*` all deploy at the site root.
 - Icons are solid-color placeholders; final artwork is an onboarding/design concern (out of scope).
+
+## PRD02 Backlog Import (real Instagram export)
+
+Requires a real "Download Your Information" export from Instagram.
+
+### Setup
+- Apply the new D1 columns. Fresh local DB: `wrangler d1 execute insave --local --file=schema.sql`.
+  Existing remote DB (the `saved_at`/enrichment columns must be added by ALTER, since
+  `CREATE TABLE IF NOT EXISTS` will not modify an existing table):
+  `wrangler d1 execute insave --command "ALTER TABLE pending_capture ADD COLUMN saved_at INTEGER; ALTER TABLE pending_capture ADD COLUMN title TEXT; ALTER TABLE pending_capture ADD COLUMN thumbnail TEXT; ALTER TABLE pending_capture ADD COLUMN description TEXT;"`
+
+### Checklist (PRD §10)
+- [ ] Upload the export `.zip` on `/import.html` → full backlog lists with NO network calls to Instagram (check devtools Network).
+- [ ] Upload the extracted `saved_posts.json` directly → same result.
+- [ ] Items are grouped by author and ordered by recency; per-author counts shown.
+- [ ] A malformed/wrong file shows the safe error banner, no crash.
+- [ ] "Keep" / "Keep all from @author" promotes items; they appear in D1 with `source='import'` and `saved_at` set.
+- [ ] Skipped/dismissed items are NOT in D1 and generate no reminders, but remain in the local backlog (dormant).
+- [ ] Re-uploading the same export adds no duplicates ("N already saved" shown).
+- [ ] Confirm the real export's `saved_posts.json` structure matches `parse-saved-posts.ts`; adjust if Instagram changed field names.
