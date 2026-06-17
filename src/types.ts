@@ -36,6 +36,8 @@ export interface ParsedSavedItem {
   url: string;
   author: string;
   savedAt: number; // epoch ms (converted from the export's seconds)
+  caption?: string;
+  mediaType: "reel" | "post";
 }
 
 export interface ImportedItem {
@@ -47,6 +49,8 @@ export interface ImportedItem {
   raw_payload: string; // JSON of the raw export entry
   parse_ok: boolean;
   backlog_state: BacklogState;
+  caption?: string;
+  media_type: "reel" | "post";
 }
 
 export interface EnrichmentResult {

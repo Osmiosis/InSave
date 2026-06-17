@@ -5,8 +5,13 @@ import type { ParsedSavedItem } from "../../src/types";
 let n = 0;
 const deps = { now: () => 5000, uuid: () => `id-${n++}` };
 
-function parsed(url: string, author = "a", savedAt = 1): ParsedSavedItem {
-  return { url, author, savedAt };
+function parsed(
+  url: string,
+  author = "a",
+  savedAt = 1,
+  over: Partial<ParsedSavedItem> = {},
+): ParsedSavedItem {
+  return { url, author, savedAt, mediaType: "reel", ...over };
 }
 
 describe("toImportedItems", () => {

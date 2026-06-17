@@ -6,7 +6,7 @@ function item(): ImportedItem {
   return {
     id: "i-1", canonical_url: "https://www.instagram.com/reel/A", author: "a",
     saved_at: 1000, imported_at: 2000, raw_payload: '{"x":1}', parse_ok: true,
-    backlog_state: "dormant",
+    backlog_state: "dormant", media_type: "reel",
   };
 }
 

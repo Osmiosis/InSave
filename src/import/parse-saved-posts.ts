@@ -35,7 +35,7 @@ export function parseSavedPosts(jsonText: string): ParsedSavedItem[] {
       }
     }
 
-    items.push({ url: href, author, savedAt: tsSeconds > 0 ? tsSeconds * 1000 : 0 });
+    items.push({ url: href, author, savedAt: tsSeconds > 0 ? tsSeconds * 1000 : 0, mediaType: "reel" });
   }
 
   if (items.length === 0) throw new ImportError();

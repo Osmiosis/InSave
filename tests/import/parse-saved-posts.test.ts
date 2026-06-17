@@ -27,6 +27,7 @@ describe("parseSavedPosts", () => {
       url: "https://www.instagram.com/reel/AAA/",
       author: "creator_one",
       savedAt: 1700000000000,
+      mediaType: "reel",
     });
   });
 
