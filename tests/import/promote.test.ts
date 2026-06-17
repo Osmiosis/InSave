@@ -54,4 +54,17 @@ describe("promote", () => {
     expect(rec.title).toBe("T");
     expect(rec.thumbnail).toBe("th");
   });
+
+  it("fills description from the imported caption", async () => {
+    const d = deps();
+    await promote({ ...item(), caption: "the caption" }, d.obj);
+    expect(d.put.mock.calls[0][0].description).toBe("the caption");
+  });
+
+  it("export caption wins over an enricher-provided description", async () => {
+    const d = deps();
+    d.enrich.mockResolvedValueOnce({ description: "from enricher" } as never);
+    await promote({ ...item(), caption: "from export" }, d.obj);
+    expect(d.put.mock.calls[0][0].description).toBe("from export");
+  });
 });

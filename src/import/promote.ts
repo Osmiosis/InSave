@@ -27,6 +27,7 @@ export async function promote(item: ImportedItem, deps: PromoteDeps): Promise<vo
     synced: false,
     saved_at: item.saved_at,
     ...(enrichment ?? {}),
+    ...(item.caption ? { description: item.caption } : {}),
   };
 
   await deps.pendingStore.put(record);
