@@ -44,6 +44,8 @@ describe("promote", () => {
     expect(rec.saved_at).toBe(1000);
     expect(rec.canonical_url).toBe("https://www.instagram.com/reel/A");
     expect(rec.captured_at).toBe(2000); // imported_at
+    expect(rec.author).toBe("a");
+    expect(rec.media_type).toBe("reel");
   });
 
   it("merges enrichment fields when the enricher returns them", async () => {

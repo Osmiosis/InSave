@@ -26,6 +26,8 @@ export async function promote(item: ImportedItem, deps: PromoteDeps): Promise<vo
     parse_ok: item.parse_ok,
     synced: false,
     saved_at: item.saved_at,
+    author: item.author,
+    media_type: item.media_type,
     ...(enrichment ?? {}),
     ...(item.caption ? { description: item.caption } : {}),
   };
