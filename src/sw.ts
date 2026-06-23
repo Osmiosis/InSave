@@ -6,7 +6,7 @@ import type { SharePayload } from "./types";
 
 declare const self: ServiceWorkerGlobalScope;
 
-const SHELL = ["/", "/index.html", "/captured.html", "/manifest.webmanifest"];
+const SHELL = ["/", "/index.html", "/captured.html", "/tag.html", "/manifest.webmanifest"];
 const CACHE = "insave-shell-v1";
 
 // Open the IndexedDB connection once and reuse it; avoids racing parallel

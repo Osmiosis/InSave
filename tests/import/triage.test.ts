@@ -5,7 +5,7 @@ import type { ImportedItem } from "../../src/types";
 function item(id: string, author: string, saved_at: number): ImportedItem {
   return {
     id, canonical_url: `u-${id}`, author, saved_at, imported_at: 0,
-    raw_payload: "{}", parse_ok: true, backlog_state: "dormant",
+    raw_payload: "{}", parse_ok: true, backlog_state: "dormant", media_type: "reel",
   };
 }
 

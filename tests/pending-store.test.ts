@@ -53,4 +53,64 @@ describe("pending-store", () => {
     await store.markSynced(["a"]);
     expect(await store.listUnsynced()).toEqual([]);
   });
+
+  it("lists by status, newest first", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a", captured_at: 100 }));
+    await store.put(rec({ id: "b", canonical_url: "u-b", captured_at: 300 }));
+    await store.put(rec({ id: "c", canonical_url: "u-c", captured_at: 200, status: "tagged", topic_tags: ["x"] }));
+    const pending = await store.listByStatus("pending");
+    expect(pending.map((r) => r.id)).toEqual(["b", "a"]);
+  });
+
+  it("tags an item: sets status, tagged_at, tags, importance, unsynced", async () => {
+    const store = await createPendingStore(() => 7777);
+    await store.put(rec({ id: "a", canonical_url: "u-a", synced: true }));
+    await store.tag("a", { topic_tags: ["claude tricks"], importance: "matters" });
+    const [r] = await store.listByStatus("tagged");
+    expect(r.id).toBe("a");
+    expect(r.status).toBe("tagged");
+    expect(r.tagged_at).toBe(7777);
+    expect(r.topic_tags).toEqual(["claude tricks"]);
+    expect(r.importance).toBe("matters");
+    expect(r.synced).toBe(false);
+  });
+
+  it("tag defaults importance to normal", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a" }));
+    await store.tag("a", { topic_tags: ["gym"] });
+    const [r] = await store.listByStatus("tagged");
+    expect(r.importance).toBe("normal");
+  });
+
+  it("tag is idempotent on the same id (no duplicate rows)", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a" }));
+    await store.tag("a", { topic_tags: ["gym"] });
+    await store.tag("a", { topic_tags: ["gym"] });
+    expect(await store.listByStatus("tagged")).toHaveLength(1);
+  });
+
+  it("dismiss and restore flip status and mark unsynced", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a", synced: true }));
+    await store.dismiss("a");
+    expect((await store.listByStatus("dismissed")).map((r) => r.id)).toEqual(["a"]);
+    await store.restore("a");
+    expect((await store.listByStatus("pending")).map((r) => r.id)).toEqual(["a"]);
+    expect((await store.getByCanonicalUrl("u-a"))?.synced).toBe(false);
+  });
+
+  it("listDistinctTags unions tags across tagged items, excluding dismissed", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a" }));
+    await store.put(rec({ id: "b", canonical_url: "u-b" }));
+    await store.put(rec({ id: "c", canonical_url: "u-c" }));
+    await store.tag("a", { topic_tags: ["gym"] });
+    await store.tag("b", { topic_tags: ["gym", "skincare"] });
+    await store.tag("c", { topic_tags: ["robotics"] });
+    await store.dismiss("c"); // dismissed item's tags drop out of the chip set
+    expect(await store.listDistinctTags()).toEqual(["gym", "skincare"]);
+  });
 });

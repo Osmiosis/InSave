@@ -33,6 +33,8 @@ export function toImportedItems(
       raw_payload: JSON.stringify(p),
       parse_ok: parseOk,
       backlog_state: "dormant",
+      caption: p.caption,
+      media_type: p.mediaType,
     });
   }
 

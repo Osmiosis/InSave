@@ -9,7 +9,12 @@ CREATE TABLE IF NOT EXISTS pending_capture (
   saved_at      INTEGER,
   title         TEXT,
   thumbnail     TEXT,
-  description   TEXT
+  description   TEXT,
+  topic_tags    TEXT,
+  importance    TEXT,
+  tagged_at     INTEGER,
+  author        TEXT,
+  media_type    TEXT
 );
 
 -- Dedupe key. Partial unique index so multiple parse_ok=false rows

@@ -10,10 +10,42 @@ interface WireRecord {
   title?: string;
   thumbnail?: string;
   description?: string;
+  topic_tags?: string[];
+  importance?: string;
+  tagged_at?: number;
+  author?: string;
+  media_type?: string;
 }
 
 interface Env {
   DB: D1Database;
+}
+
+// Upsert: insert new captures, and on an id conflict (a re-synced state transition)
+// update only the mutable columns. Identity columns (canonical_url, raw_payload,
+// captured_at, source, parse_ok) are write-once and never touched here.
+export const UPSERT_SQL = `INSERT INTO pending_capture
+   (id, canonical_url, raw_payload, captured_at, source, status, parse_ok,
+    saved_at, title, thumbnail, description, topic_tags, importance, tagged_at, author, media_type)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ ON CONFLICT(id) DO UPDATE SET
+   status = excluded.status,
+   saved_at = excluded.saved_at,
+   description = excluded.description,
+   topic_tags = excluded.topic_tags,
+   importance = excluded.importance,
+   tagged_at = excluded.tagged_at,
+   author = excluded.author,
+   media_type = excluded.media_type`;
+
+export function toBind(r: WireRecord): unknown[] {
+  return [
+    r.id, r.canonical_url, r.raw_payload, r.captured_at, r.source, r.status,
+    r.parse_ok ? 1 : 0,
+    r.saved_at ?? null, r.title ?? null, r.thumbnail ?? null, r.description ?? null,
+    r.topic_tags ? JSON.stringify(r.topic_tags) : null,
+    r.importance ?? null, r.tagged_at ?? null, r.author ?? null, r.media_type ?? null,
+  ];
 }
 
 export default {
@@ -36,23 +68,11 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
   }
 
   const accepted: string[] = [];
-  const stmt = env.DB.prepare(
-    `INSERT INTO pending_capture
-       (id, canonical_url, raw_payload, captured_at, source, status, parse_ok,
-        saved_at, title, thumbnail, description)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO NOTHING`,
-  );
+  const stmt = env.DB.prepare(UPSERT_SQL);
 
   for (const r of records) {
     try {
-      await stmt
-        .bind(
-          r.id, r.canonical_url, r.raw_payload, r.captured_at, r.source, r.status,
-          r.parse_ok ? 1 : 0,
-          r.saved_at ?? null, r.title ?? null, r.thumbnail ?? null, r.description ?? null,
-        )
-        .run();
+      await stmt.bind(...toBind(r)).run();
       accepted.push(r.id);
     } catch {
       // The insert threw (e.g. canonical_url already present under a different id).

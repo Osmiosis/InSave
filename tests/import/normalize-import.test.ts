@@ -5,8 +5,13 @@ import type { ParsedSavedItem } from "../../src/types";
 let n = 0;
 const deps = { now: () => 5000, uuid: () => `id-${n++}` };
 
-function parsed(url: string, author = "a", savedAt = 1): ParsedSavedItem {
-  return { url, author, savedAt };
+function parsed(
+  url: string,
+  author = "a",
+  savedAt = 1,
+  over: Partial<ParsedSavedItem> = {},
+): ParsedSavedItem {
+  return { url, author, savedAt, mediaType: "reel", ...over };
 }
 
 describe("toImportedItems", () => {
@@ -38,5 +43,15 @@ describe("toImportedItems", () => {
     expect(out).toHaveLength(1);
     expect(out[0].parse_ok).toBe(false);
     expect(out[0].canonical_url).toBe("");
+  });
+
+  it("carries caption and media_type onto the imported item", () => {
+    n = 0;
+    const out = toImportedItems(
+      [parsed("https://www.instagram.com/p/AAA/", "a", 1, { caption: "hi", mediaType: "post" })],
+      deps,
+    );
+    expect(out[0].caption).toBe("hi");
+    expect(out[0].media_type).toBe("post");
   });
 });

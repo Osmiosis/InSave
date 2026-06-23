@@ -6,7 +6,7 @@ function item(): ImportedItem {
   return {
     id: "i-1", canonical_url: "https://www.instagram.com/reel/A", author: "a",
     saved_at: 1000, imported_at: 2000, raw_payload: '{"x":1}', parse_ok: true,
-    backlog_state: "dormant",
+    backlog_state: "dormant", media_type: "reel",
   };
 }
 
@@ -19,7 +19,7 @@ function deps() {
     setState, put, enrich, drain,
     obj: {
       importedStore: { setState, bulkPut: async () => {}, getByCanonicalUrl: async () => undefined, listAll: async () => [], listByState: async () => [] },
-      pendingStore: { put, getByCanonicalUrl: async () => undefined, listUnsynced: async () => [], markSynced: async () => {} },
+      pendingStore: { put, getByCanonicalUrl: async () => undefined, listUnsynced: async () => [], markSynced: async () => {}, listByStatus: async () => [], tag: async () => {}, dismiss: async () => {}, restore: async () => {}, listDistinctTags: async () => [] },
       enricher: { enrich },
       drain,
       uuid: () => "new-id",
@@ -44,6 +44,8 @@ describe("promote", () => {
     expect(rec.saved_at).toBe(1000);
     expect(rec.canonical_url).toBe("https://www.instagram.com/reel/A");
     expect(rec.captured_at).toBe(2000); // imported_at
+    expect(rec.author).toBe("a");
+    expect(rec.media_type).toBe("reel");
   });
 
   it("merges enrichment fields when the enricher returns them", async () => {
@@ -53,5 +55,18 @@ describe("promote", () => {
     const rec = d.put.mock.calls[0][0];
     expect(rec.title).toBe("T");
     expect(rec.thumbnail).toBe("th");
+  });
+
+  it("fills description from the imported caption", async () => {
+    const d = deps();
+    await promote({ ...item(), caption: "the caption" }, d.obj);
+    expect(d.put.mock.calls[0][0].description).toBe("the caption");
+  });
+
+  it("export caption wins over an enricher-provided description", async () => {
+    const d = deps();
+    d.enrich.mockResolvedValueOnce({ description: "from enricher" } as never);
+    await promote({ ...item(), caption: "from export" }, d.obj);
+    expect(d.put.mock.calls[0][0].description).toBe("from export");
   });
 });

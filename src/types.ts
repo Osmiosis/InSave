@@ -5,7 +5,7 @@ export interface SharePayload {
 }
 
 export type CaptureSource = "share_target" | "import" | "shortcut" | "clipboard";
-export type CaptureStatus = "pending";
+export type CaptureStatus = "pending" | "tagged" | "dismissed";
 
 export interface PendingCapture {
   id: string;            // client-generated UUID
@@ -21,6 +21,13 @@ export interface PendingCapture {
   title?: string;
   thumbnail?: string;
   description?: string;
+  // Tag Queue (PRD 03). Undefined until the item is tagged.
+  topic_tags?: string[];
+  importance?: "normal" | "matters";
+  tagged_at?: number;    // epoch ms, set on transition to "tagged"
+  // Carried from backlog import at promote time; null for share-captures.
+  author?: string;
+  media_type?: "reel" | "post";
 }
 
 export type CaptureOutcome = "saved" | "dup" | "unparsed" | "error";
@@ -36,6 +43,8 @@ export interface ParsedSavedItem {
   url: string;
   author: string;
   savedAt: number; // epoch ms (converted from the export's seconds)
+  caption?: string;
+  mediaType: "reel" | "post";
 }
 
 export interface ImportedItem {
@@ -47,6 +56,8 @@ export interface ImportedItem {
   raw_payload: string; // JSON of the raw export entry
   parse_ok: boolean;
   backlog_state: BacklogState;
+  caption?: string;
+  media_type: "reel" | "post";
 }
 
 export interface EnrichmentResult {

@@ -15,6 +15,7 @@ function item(over: Partial<ImportedItem> = {}): ImportedItem {
     raw_payload: "{}",
     parse_ok: true,
     backlog_state: over.backlog_state ?? "dormant",
+    media_type: over.media_type ?? "reel",
     ...over,
   };
 }
