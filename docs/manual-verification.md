@@ -56,3 +56,22 @@ Requires a real "Download Your Information" export from Instagram.
 - [ ] An item with no caption renders without an empty caption line.
 - [ ] Promote an item; in D1 / pending sync its `description` equals the export caption.
 - [ ] Both reels (`/reel/`) and posts (`/p/`) appear in triage.
+
+## PRD 03 — Tag Queue
+
+### Setup
+- Apply the new D1 columns. Fresh local DB: `wrangler d1 execute insave --local --file=schema.sql`.
+  Existing remote DB (add by ALTER, since `CREATE TABLE IF NOT EXISTS` won't modify an existing table):
+  `wrangler d1 execute insave --command "ALTER TABLE pending_capture ADD COLUMN topic_tags TEXT; ALTER TABLE pending_capture ADD COLUMN importance TEXT; ALTER TABLE pending_capture ADD COLUMN tagged_at INTEGER; ALTER TABLE pending_capture ADD COLUMN author TEXT; ALTER TABLE pending_capture ADD COLUMN media_type TEXT;"`
+
+### Checklist (PRD §10)
+- [ ] `/tag.html` lists only `pending` items (captured + promoted) together, newest first.
+- [ ] First run (no tags yet) shows greyed-out non-binding example chips; they do not apply.
+- [ ] Typing a new tag + Tag processes the item; that tag appears as a real one-tap chip next session.
+- [ ] Tapping an existing chip processes a typical item in a single tap.
+- [ ] "Matters" elevates importance in one optional tap; default is normal; never re-prompted.
+- [ ] Dismiss removes the item and offers Undo; Undo restores it to the queue.
+- [ ] Tagged/dismissed items leave the queue; in D1 their `status`, `topic_tags` (JSON), `importance`, `tagged_at` are set (tagged) — check `SELECT status, topic_tags, importance FROM pending_capture`.
+- [ ] Promoted import items show `@author`, caption, and a reel/post badge on the card; share-captures fall back to the URL host.
+- [ ] Each card opens the original reel in Instagram (link-out); unparsed items show "needs review" instead.
+- [ ] Tag offline → transition drains to D1 on reconnect (status updates, no duplicate rows).
