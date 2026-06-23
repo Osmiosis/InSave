@@ -18,6 +18,11 @@ function storeWith(unsynced: PendingCapture[]): PendingStore & { marked: string[
     async getByCanonicalUrl() { return undefined; },
     async listUnsynced() { return unsynced; },
     async markSynced(ids) { marked.push(...ids); },
+    async listByStatus() { return []; },
+    async tag() {},
+    async dismiss() {},
+    async restore() {},
+    async listDistinctTags() { return []; },
   };
 }
 

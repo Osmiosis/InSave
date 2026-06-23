@@ -15,6 +15,11 @@ function fakeStore(seed: PendingCapture[] = []) {
     },
     async listUnsynced() { return [...data.values()].filter((r) => !r.synced); },
     async markSynced() {},
+    async listByStatus() { return []; },
+    async tag() {},
+    async dismiss() {},
+    async restore() {},
+    async listDistinctTags() { return []; },
   };
   return store;
 }
