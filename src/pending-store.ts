@@ -1,4 +1,4 @@
-import { openInsaveDB, PENDING_STORE } from "./db";
+import { openInsaveDB, PENDING_STORE, META_STORE } from "./db";
 import type { CaptureStatus, PendingCapture } from "./types";
 
 export interface PendingStore {
@@ -15,19 +15,36 @@ export interface PendingStore {
 
 export async function createPendingStore(
   now: () => number = () => Date.now(),
+  uuid: () => string = () => crypto.randomUUID(),
 ): Promise<PendingStore> {
   const db = await openInsaveDB();
+
+  // Mint (once) and read the device's own user_id; backfill any pre-existing records.
+  let meta = (await db.get(META_STORE, "user_id")) as { key: string; value: string } | undefined;
+  if (!meta) {
+    meta = { key: "user_id", value: uuid() };
+    await db.put(META_STORE, meta);
+    const tx = db.transaction(PENDING_STORE, "readwrite");
+    let cursor = await tx.store.openCursor();
+    while (cursor) {
+      const r = cursor.value as PendingCapture;
+      if (!r.user_id) await cursor.update({ ...r, user_id: meta.value, synced: false });
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+  const userId = meta.value;
 
   async function patch(id: string, fields: Partial<PendingCapture>): Promise<void> {
     const tx = db.transaction(PENDING_STORE, "readwrite");
     const r = (await tx.store.get(id)) as PendingCapture | undefined;
-    if (r) await tx.store.put({ ...r, ...fields, synced: false });
+    if (r) await tx.store.put({ ...r, ...fields, user_id: r.user_id ?? userId, synced: false });
     await tx.done;
   }
 
   return {
     async put(record) {
-      await db.put(PENDING_STORE, record);
+      await db.put(PENDING_STORE, { ...record, user_id: record.user_id ?? userId });
     },
     async getByCanonicalUrl(canonicalUrl) {
       if (!canonicalUrl) return undefined;
