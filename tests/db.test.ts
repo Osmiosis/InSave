@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import "fake-indexeddb/auto";
 import { indexedDB } from "fake-indexeddb";
-import { openInsaveDB, PENDING_STORE } from "../src/db";
+import { openInsaveDB, PENDING_STORE, getUserId } from "../src/db";
 
 describe("db schema", () => {
   beforeEach(async () => {
@@ -24,5 +24,12 @@ describe("db schema", () => {
     expect(db.version).toBe(4);
     expect([...db.objectStoreNames]).toContain("user_settings");
     expect([...db.objectStoreNames]).toContain("meta");
+  });
+
+  it("getUserId mints once and returns the same id thereafter", async () => {
+    const first = await getUserId(() => "minted-id");
+    const second = await getUserId(() => "different-id");
+    expect(first).toBe("minted-id");
+    expect(second).toBe("minted-id"); // already minted; uuid fn ignored
   });
 });

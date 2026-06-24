@@ -33,3 +33,14 @@ export async function openInsaveDB(): Promise<IDBPDatabase> {
   db.addEventListener("versionchange", () => db.close());
   return db;
 }
+
+// Reads (or mints once) the device's own user_id from the meta store. Shared by the
+// pending-store and the push-enable flow so both agree on identity.
+export async function getUserId(uuid: () => string = () => crypto.randomUUID()): Promise<string> {
+  const db = await openInsaveDB();
+  const meta = (await db.get(META_STORE, "user_id")) as { key: string; value: string } | undefined;
+  if (meta) return meta.value;
+  const value = uuid();
+  await db.put(META_STORE, { key: "user_id", value });
+  return value;
+}

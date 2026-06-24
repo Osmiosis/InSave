@@ -1,4 +1,4 @@
-import { openInsaveDB, PENDING_STORE, META_STORE } from "./db";
+import { openInsaveDB, PENDING_STORE, META_STORE, getUserId } from "./db";
 import type { CaptureStatus, PendingCapture } from "./types";
 
 export interface PendingStore {
@@ -19,21 +19,20 @@ export async function createPendingStore(
 ): Promise<PendingStore> {
   const db = await openInsaveDB();
 
-  // Mint (once) and read the device's own user_id; backfill any pre-existing records.
-  let meta = (await db.get(META_STORE, "user_id")) as { key: string; value: string } | undefined;
-  if (!meta) {
-    meta = { key: "user_id", value: uuid() };
-    await db.put(META_STORE, meta);
+  // user_id is owned by getUserId (shared with push-enable). Backfill pre-existing
+  // records only on the very first mint (when no user_id existed yet).
+  const hadUserId = Boolean(await db.get(META_STORE, "user_id"));
+  const userId = await getUserId(uuid);
+  if (!hadUserId) {
     const tx = db.transaction(PENDING_STORE, "readwrite");
     let cursor = await tx.store.openCursor();
     while (cursor) {
       const r = cursor.value as PendingCapture;
-      if (!r.user_id) await cursor.update({ ...r, user_id: meta.value, synced: false });
+      if (!r.user_id) await cursor.update({ ...r, user_id: userId, synced: false });
       cursor = await cursor.continue();
     }
     await tx.done;
   }
-  const userId = meta.value;
 
   async function patch(id: string, fields: Partial<PendingCapture>): Promise<void> {
     const tx = db.transaction(PENDING_STORE, "readwrite");

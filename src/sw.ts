@@ -70,3 +70,34 @@ async function handleShare(request: Request): Promise<Response> {
 
   return Response.redirect(`/captured.html?status=${status}`, 303);
 }
+
+self.addEventListener("push", (event: PushEvent) => {
+  let data = { title: "InSave", body: "Saved reels worth revisiting", count: 0 };
+  try {
+    if (event.data) data = { ...data, ...(event.data.json() as Partial<typeof data>) };
+  } catch {
+    /* malformed payload — fall back to the default copy */
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      tag: "insave-digest", // collapse repeat digests into one
+      data,
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event: NotificationEvent) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = windows.find((c) => "focus" in c);
+      if (existing) {
+        await existing.focus();
+        return;
+      }
+      await self.clients.openWindow("/");
+    })(),
+  );
+});
