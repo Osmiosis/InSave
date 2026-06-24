@@ -1,0 +1,80 @@
+import { describe, it, expect } from "vitest";
+import { selectDue, isQuietHours, cadenceGate, DIGEST_CAP, CADENCE_GAP } from "../../src/reminder/digest";
+import type { PendingCapture, UserSettings } from "../../src/types";
+
+function item(over: Partial<PendingCapture>): PendingCapture {
+  return {
+    id: "i", canonical_url: "u", raw_payload: "{}", captured_at: 0,
+    source: "import", status: "tagged", parse_ok: true, synced: true,
+    reminder_status: "active", importance: "normal", next_due_at: 0, ...over,
+  };
+}
+
+function settings(over: Partial<UserSettings> = {}): UserSettings {
+  return {
+    user_id: "u1", quiet_start: 0, quiet_end: 0, timezone: "UTC",
+    cadence: "balanced", reminders_paused: false, synced: true, ...over,
+  };
+}
+
+describe("selectDue", () => {
+  it("keeps active items whose next_due_at has passed", () => {
+    const due = selectDue(
+      [item({ id: "a", next_due_at: 100 }), item({ id: "b", next_due_at: 5000 })],
+      settings(), 1000,
+    );
+    expect(due.map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("orders matters before normal, then most-overdue first", () => {
+    const due = selectDue([
+      item({ id: "n1", importance: "normal", next_due_at: 10 }),
+      item({ id: "m1", importance: "matters", next_due_at: 900 }),
+      item({ id: "m2", importance: "matters", next_due_at: 100 }),
+    ], settings(), 1000);
+    expect(due.map((i) => i.id)).toEqual(["m2", "m1", "n1"]);
+  });
+
+  it("excludes non-active items", () => {
+    const due = selectDue([item({ id: "x", reminder_status: "done", next_due_at: 0 })], settings(), 1000);
+    expect(due).toEqual([]);
+  });
+
+  it("returns nothing when reminders are paused", () => {
+    const due = selectDue([item({ id: "a", next_due_at: 0 })], settings({ reminders_paused: true }), 1000);
+    expect(due).toEqual([]);
+  });
+
+  it("caps the digest", () => {
+    const many = Array.from({ length: DIGEST_CAP + 3 }, (_, i) => item({ id: `i${i}`, next_due_at: i }));
+    expect(selectDue(many, settings(), 1_000_000)).toHaveLength(DIGEST_CAP);
+  });
+});
+
+describe("isQuietHours", () => {
+  it("never quiet when start == end (00..00)", () => {
+    expect(isQuietHours(settings({ quiet_start: 0, quiet_end: 0 }), 0)).toBe(false);
+  });
+  it("handles a midnight-wrapping window (22..8 UTC, 02:00 is quiet)", () => {
+    const t = Date.UTC(2026, 0, 1, 2, 0, 0); // 02:00 UTC
+    expect(isQuietHours(settings({ quiet_start: 22, quiet_end: 8, timezone: "UTC" }), t)).toBe(true);
+  });
+  it("midday is not quiet under 22..8", () => {
+    const t = Date.UTC(2026, 0, 1, 12, 0, 0);
+    expect(isQuietHours(settings({ quiet_start: 22, quiet_end: 8, timezone: "UTC" }), t)).toBe(false);
+  });
+});
+
+describe("cadenceGate", () => {
+  it("allows when no prior digest", () => {
+    expect(cadenceGate(settings(), 1000, false)).toBe(true);
+  });
+  it("blocks within the balanced min-gap", () => {
+    expect(cadenceGate(settings({ last_digest_at: 0 }), CADENCE_GAP.balanced - 1, false)).toBe(false);
+  });
+  it("a matters item pulls the gap forward to the often interval", () => {
+    const now = CADENCE_GAP.often + 1;
+    expect(cadenceGate(settings({ last_digest_at: 0 }), now, false)).toBe(false);
+    expect(cadenceGate(settings({ last_digest_at: 0 }), now, true)).toBe(true);
+  });
+});

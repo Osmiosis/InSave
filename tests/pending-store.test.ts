@@ -113,4 +113,17 @@ describe("pending-store", () => {
     await store.dismiss("c"); // dismissed item's tags drop out of the chip set
     expect(await store.listDistinctTags()).toEqual(["gym", "skincare"]);
   });
+
+  it("stamps a minted user_id onto writes and persists it in meta", async () => {
+    const store = await createPendingStore(() => 0, () => "user-xyz");
+    await store.put(rec({ id: "a", canonical_url: "u-a" }));
+    const r = await store.getByCanonicalUrl("u-a");
+    expect(r?.user_id).toBe("user-xyz");
+  });
+
+  it("does not overwrite an existing user_id on a record", async () => {
+    const store = await createPendingStore(() => 0, () => "user-xyz");
+    await store.put(rec({ id: "b", canonical_url: "u-b", user_id: "other" }));
+    expect((await store.getByCanonicalUrl("u-b"))?.user_id).toBe("other");
+  });
 });

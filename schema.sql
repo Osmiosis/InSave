@@ -14,8 +14,36 @@ CREATE TABLE IF NOT EXISTS pending_capture (
   importance    TEXT,
   tagged_at     INTEGER,
   author        TEXT,
-  media_type    TEXT
+  media_type    TEXT,
+  user_id          TEXT,
+  reminder_status  TEXT,
+  next_due_at      INTEGER,
+  cycle_count      INTEGER,
+  ignored_count    INTEGER,
+  last_surfaced_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id          TEXT PRIMARY KEY,
+  quiet_start      INTEGER,
+  quiet_end        INTEGER,
+  timezone         TEXT,
+  cadence          TEXT,
+  reminders_paused INTEGER,
+  last_digest_at   INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_due
+  ON pending_capture (user_id, reminder_status, next_due_at);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint   TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subs_user ON push_subscriptions (user_id);
 
 -- Dedupe key. Partial unique index so multiple parse_ok=false rows
 -- (canonical_url = '') don't collide.

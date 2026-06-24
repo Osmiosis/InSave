@@ -75,3 +75,54 @@ Requires a real "Download Your Information" export from Instagram.
 - [ ] Promoted import items show `@author`, caption, and a reel/post badge on the card; share-captures fall back to the URL host.
 - [ ] Each card opens the original reel in Instagram (link-out); unparsed items show "needs review" instead.
 - [ ] Tag offline → transition drains to D1 on reconnect (status updates, no duplicate rows).
+
+## PRD 04a — Reminder Engine Core (headless)
+
+04a ships no user-visible UI; verify the engine advances D1 state on schedule. Web Push, the
+review-view UI, and device pull/restore arrive in 04b.
+
+### Setup
+- Apply the new D1 columns + settings table. Fresh local DB: `wrangler d1 execute insave --local --file=schema.sql`.
+  Existing remote DB (add by ALTER):
+  `wrangler d1 execute insave --command "ALTER TABLE pending_capture ADD COLUMN user_id TEXT; ALTER TABLE pending_capture ADD COLUMN reminder_status TEXT; ALTER TABLE pending_capture ADD COLUMN next_due_at INTEGER; ALTER TABLE pending_capture ADD COLUMN cycle_count INTEGER; ALTER TABLE pending_capture ADD COLUMN ignored_count INTEGER; ALTER TABLE pending_capture ADD COLUMN last_surfaced_at INTEGER;"`
+  Then create the settings table + index by re-running `schema.sql` (its `CREATE TABLE/INDEX IF NOT EXISTS` are safe on an existing DB).
+
+### Checklist
+- [ ] `wrangler dev --test-scheduled` then trigger the cron (`curl "http://localhost:8787/__scheduled"`): a tagged item with no reminder fields gets `reminder_status='active'` and a future `next_due_at` (lazy init).
+- [ ] After making an item due (`next_due_at` in the past) and re-triggering: the cron logs a digest line, advances `cycle_count`, sets `last_surfaced_at`, and pushes `next_due_at` out.
+- [ ] A `matters` item gets a sooner `next_due_at` than a `normal` item at the same cycle.
+- [ ] Triggering twice in the same hour does not double-advance `cycle_count` or log a second digest (idempotency).
+- [ ] Setting `reminders_paused=1` (or a quiet-hours window covering now) suppresses the digest.
+- [ ] A device sync of a tagged item never overwrites `reminder_status`/`next_due_at`/`cycle_count` already set by the cron; `user_id` is present on synced rows.
+
+## PRD 04b — Reminder Delivery (Web Push)
+
+### Setup
+- Generate VAPID keys once: `npx web-push generate-vapid-keys`.
+- Put the **public** key in `src/push-config.ts` (`VAPID_PUBLIC_KEY`) and `wrangler.toml` `[vars]`;
+  set the **private** key as a secret: `wrangler secret put VAPID_PRIVATE_KEY`; set `VAPID_SUBJECT`
+  to a real `mailto:` in `wrangler.toml`.
+- Create the subscriptions table: re-run `schema.sql` (its `CREATE TABLE IF NOT EXISTS` is safe), or for
+  an existing remote DB run the `CREATE TABLE push_subscriptions ...` + `idx_subs_user` statements.
+
+### Checklist
+- [ ] On the installed PWA, tap "Enable reminders" → permission prompt → a row appears in `push_subscriptions` for the device's `user_id` (`SELECT * FROM push_subscriptions`).
+- [ ] Make an item due and trigger the cron (`wrangler dev --test-scheduled` + `curl ".../__scheduled"`): a single notification "N reels worth revisiting" arrives — with InSave fully closed.
+- [ ] Tapping the notification opens/focuses InSave.
+- [ ] Two due items in one cycle still produce ONE notification (the `insave-digest` tag collapses it).
+- [ ] Unsubscribe in the browser (or use a stale endpoint) then trigger the cron → the dead row is pruned from `push_subscriptions` (404/410 → delete).
+- [ ] The VAPID private key is only a Worker secret (not in the repo); `git grep` finds no private key.
+
+## PRD 04c — Reminder Interaction (review + pull + actions)
+
+No schema changes; uses 04a/04b setup (reminder columns, VAPID, push_subscriptions).
+
+### Checklist
+- [ ] Open `/review.html` (or tap a notification) → the active reminder queue lists, matters-first; each card opens the reel in Instagram.
+- [ ] Tap **Done** on a card → in D1 the item's `reminder_status='done'` and it leaves the queue on reload.
+- [ ] Tap **Snooze** → `next_due_at` moves out, `reminder_status` stays `active`, the card leaves the list.
+- [ ] Tap **Open in Instagram** → the reel opens and the item's `ignored_count` resets to 0 in D1.
+- [ ] On the push notification, tap the **Done** / **Snooze** action button (app closed) → D1 reflects it for every item in the digest.
+- [ ] Reinstall the PWA (clear site data) → open the app → `pullAndReconcile` restores the tracked items from D1 (no data loss).
+- [ ] Re-pull after a local tag edit → the pull keeps the local tag/importance and does not resurrect a locally-dismissed item's content (reconciliation is no-clobber).
+- [ ] `POST /api/action` with an unknown id is a no-op (200); a malformed body returns 400.

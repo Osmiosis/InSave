@@ -230,3 +230,186 @@ capture) and updated all to the widened interface.
 plan `docs/superpowers/plans/2026-06-17-prd03-tag-queue.md`.
 
 **Next PRDs:** 04 Reminder Engine.
+
+---
+
+## PRD 04a — Reminder Engine Core (headless) — 2026-06-24
+
+**What it is:** The first slice of the Reminder Engine — the headless scheduling **brain**. A
+Cloudflare Cron Worker that wakes on a schedule, reads D1 for due `tagged` reels, advances them
+along an importance-keyed spaced-repetition curve, and assembles a capped, quiet-hours-respecting
+digest per user. PRD 04 was much larger than 01–03, so it was decomposed: 04a builds and fully
+unit-tests the engine with the push send **stubbed**; 04b adds the delivery skin (Web Push, review
+UI, device pull/restore).
+
+**Decisions made:**
+- Scope split: 04a = engine + data model + cron, push stubbed behind an injected
+  `notify(userId, digest)`. Deferred to 04b: Web Push (VAPID/encryption/subscriptions), review-view
+  UI + notification actions, device-side D1 pull/reconciliation, account-based multi-device transfer.
+- Identity: device-minted opaque `user_id` (UUID in IndexedDB `meta`), stamped on every write; D1 is
+  genuinely multi-user; no auth/login. Account-based transfer designed-for but deferred (a `user_id`
+  remap/merge later).
+- Reminder state is **cron-owned** (sole writer). The device and the cron write **disjoint** column
+  sets, so no last-write-wins arbitration is needed; the cron **lazy-initializes** a freshly-tagged
+  item (rather than the device seeding it — avoids a clobber on the conflict path).
+- Spacing presets (tunable, PRD §10): `matters` 1d/×1.6/8cyc/90d-age, `normal` 3d/×2.0/4cyc/45d-age.
+  Ignore back-off threshold 2 / accel ×1.5. Digest cap 5. Cadence gaps often 1d / balanced 2d (default)
+  / rarely 4d. Quiet hours 22→08. Cron hourly, emission gated.
+- Topic tags do not affect scheduling in v1 (organizational only, per PRD §7).
+
+**How it works:**
+- Pure modules in `src/reminder/`: `spacing.ts` (`initialState`/`advance`, one curve two presets,
+  age-out), `response.ts` (`markDone`/`snooze`/`markOpened`/`markIgnored` field patches),
+  `digest.ts` (`selectDue` filter+importance-order+cap, `isQuietHours` with midnight-wrap via `Intl`,
+  `cadenceGate` with matters pull-forward).
+- `worker/cron.ts` `runCron(repo, now, notify)` orchestrates per user: lazy-init → load/create
+  settings → pause/quiet/cadence gates → `selectDue` → `advance` each surfaced item (idempotency
+  guard `last_surfaced_at < cycleStart`, composed with `markIgnored`) → `notify` → stamp
+  `last_digest_at`. Talks to D1 through an injected `ReminderRepo` port.
+- `worker/d1-reminder-repo.ts` is the D1 adapter; `worker/index.ts` gains a `scheduled` handler
+  (stub `notify` logs the digest) alongside the existing `/api/sync` fetch handler;
+  `wrangler.toml` adds `[triggers] crons = ["0 * * * *"]`.
+- Data model: `PendingCapture` gains `user_id` + 5 reminder-state fields; new `UserSettings` type +
+  D1 `user_settings` table + `idx_due`; IndexedDB **v4** adds `user_settings` + `meta` stores;
+  `pending-store` mints/stamps `user_id` and backfills pre-existing records. The device `/api/sync`
+  upsert carries `user_id` but never the reminder-state columns (disjointness).
+
+**Delivered (verified):** `tsc` clean, **96** tests across **18** files green (62 prior + 34 new:
+spacing 7, response 4, digest 11, cron 7, db v4 1, pending-store identity 2, worker-sync user_id/
+disjointness 2), clean production build. Built TDD per task. The D1 repo + `scheduled` handler are
+thin adapters verified by `tsc` + build + the manual checklist (same pattern as the existing fetch
+handler); all scheduling logic is unit-tested against an in-memory fake repo + capturing `notify`.
+
+**Still manual / open:**
+- On-device / `wrangler dev --test-scheduled` acceptance (lazy-init, advance, matters-vs-normal,
+  idempotency, pause/quiet-hours, disjoint device sync) tracked in `docs/manual-verification.md`.
+- Existing remote D1 needs `ALTER TABLE` for the six new columns + the `user_settings` table /
+  `idx_due` (documented).
+- 04b: Web Push delivery, review-view UI + done/snooze actions, device D1 pull + reconciliation,
+  account-based transfer.
+- §10 tuning constants are sane defaults in one place, expected to change with real use.
+
+**Artifacts:** spec `docs/superpowers/specs/2026-06-24-prd04a-reminder-engine-core-design.md`,
+plan `docs/superpowers/plans/2026-06-24-prd04a-reminder-engine-core.md`.
+
+**Next PRDs:** 04b Reminder Delivery (Web Push + review UI + device pull).
+
+---
+
+## PRD 04b — Reminder Delivery (Web Push) — 2026-06-24
+
+**What it is:** The delivery skin over the 04a engine — makes the digests the cron already computes
+actually **reach the phone** via Web Push, even when InSave is closed. PRD 04 was sliced 04a (brain) /
+04b (delivery) / 04c (interaction); this is 04b. It replaces the 04a `notify` stub with a real Web
+Push sender, registers + stores push subscriptions, and shows the notification from the service
+worker.
+
+**Decisions made:**
+- Scope: delivery only. Deferred to 04c: the review-view UI, device D1 pull/reconciliation
+  (reinstall restore), done/snooze/open actions + endpoint. Still deferred: account transfer, guided
+  onboarding, notification action buttons (need 04c's action endpoint).
+- Web Push via a **vetted Workers-compatible library** (`@block65/webcrypto-web-push`, Web Crypto) —
+  the project's first Worker-side runtime dep, isolated entirely behind a `PushSender` port in one
+  adapter file so it's swappable.
+- Single-user identity unchanged from 04a (device-minted `user_id`); subscriptions stored in D1
+  scoped by `user_id` (not in IndexedDB — the browser's `pushManager` + D1 are the source of truth).
+- Minimal "Enable reminders" button now; full onboarding/permission UX stays out of scope.
+- One notification per digest (the `insave-digest` notification `tag` collapses repeats), honoring
+  PRD §6 batching. Dead endpoints (404/410) pruned on send.
+
+**How it works:**
+- `PushSender` port (`worker/push-sender.ts`) + `PushSubscriptionRecord`; the library lives only in
+  `worker/web-push-sender.ts` (`buildPushPayload` → `fetch(endpoint, init)`, 404/410 → `gone`).
+- `makeNotify(repo, sender)` (`worker/notify.ts`) replaces the 04a stub: loads a user's subscriptions,
+  `assemblePayload(due)` (pure, shared `src/reminder/payload.ts`), sends to each, prunes gone ones.
+  Wired into the `scheduled` handler with VAPID keys from `env`.
+- Registration: a new `POST /api/subscribe` (`parseSubscribe` → `repo.putSubscription`) + a new D1
+  `push_subscriptions` table. Client `src/push-enable.ts` requests permission, `pushManager.subscribe`,
+  and POSTs `{ user_id, subscription }`; `user_id` comes from a shared `getUserId()` factored out of
+  `pending-store` into `db.ts`.
+- Service worker gains `push` (shows the notification) + `notificationclick` (focus/open the app)
+  handlers. VAPID public key in `src/push-config.ts` + `wrangler.toml` `[vars]`; private key a Worker
+  secret.
+
+**Delivered (verified):** `tsc` clean, **105** tests across **21** files green (96 from the 04a
+baseline + 9 new: payload 2, makeNotify 4, parseSubscribe 2, getUserId 1), clean production build
+(the library stays worker-only, out of the client bundle). Built TDD per task. Two type-only frictions fixed during the
+build: the library's `Uint8Array` push body vs the Workers `fetch` `BodyInit` type, and TS 5.7's
+generic `Uint8Array<ArrayBufferLike>` vs `BufferSource` for `applicationServerKey` — both cast across
+the typing gap (valid at runtime). The library adapter, SW `push`/`notificationclick`, and the enable
+flow are verified on-device (real crypto + push service + DOM), not in unit tests.
+
+**Still manual / open:**
+- VAPID keygen (`npx web-push generate-vapid-keys`) + secret/var setup; replace the placeholders in
+  `src/push-config.ts` + `wrangler.toml`; create `push_subscriptions` in remote D1 — all in
+  `docs/manual-verification.md`.
+- On-device acceptance: enable → subscription row, cron → one notification with app closed, tap opens
+  app, stale endpoint pruned.
+- 04c: review-view UI, device D1 pull + reconciliation, done/snooze/open actions + endpoint.
+
+**Artifacts:** spec `docs/superpowers/specs/2026-06-24-prd04b-reminder-delivery-design.md`,
+plan `docs/superpowers/plans/2026-06-24-prd04b-reminder-delivery.md`.
+
+**Next PRDs:** 04c Reminder Interaction (review UI + device pull + done/snooze).
+
+---
+
+## PRD 04c — Reminder Interaction — 2026-06-24
+
+**What it is:** The closing slice of the Reminder Engine (and of the InSave core loop). 04a computes
+due items, 04b pushes the notification — 04c lets the user **act** on a reel and makes data survive a
+reinstall. It adds the device pull/read-back path from D1, a review-view UI listing the active queue,
+and Done/Snooze/Open actions reaching the server from both the review view and the notification's own
+buttons. Completes PRD 01–04.
+
+**Decisions made:**
+- Review content = the **live active queue** (all `reminder_status="active"` items, matters-first then
+  soonest-due), not a strict "due now" list — 04a's cron advances `next_due_at` on send, so a
+  due-gated view would be empty at notification-tap time. The notification count is a teaser; the view
+  is the working pile.
+- **Notification action buttons** (Done/Snooze on the push itself) — chosen over tap-to-open-only. The
+  payload now carries `user_id` + the surfaced `ids`; the SW routes a button tap straight to
+  `/api/action` (no window needed); a plain tap opens `/review.html`.
+- One **bulk `/api/action`** (1..N ids) serves both the review view (one id) and the notification
+  (the digest's ids). Reuses 04a `response.ts` via a pure `applyAction`.
+- **Reconciliation rule:** remote authoritative for the five server-owned reminder columns; local
+  keeps all device-owned content; absent-local rows inserted whole (reinstall restore). No new tables
+  or columns — 04c only reads back + writes existing reminder columns.
+
+**How it works:**
+- Pure units carry the logic: `applyAction(item, action, now)` (`src/reminder/action.ts`),
+  `mergePulled(local, remote)` (`reconcile-pull.ts`), `rowToPending(row)` (`row-to-pending.ts` —
+  D1 row → PendingCapture, topic_tags JSON→array, parse_ok int→bool), `assemblePayload(userId, due)`
+  (now with ids+user_id), and `parseAction`/`parsePull`.
+- Worker: `GET /api/pull?user_id=` → `repo.listByUser` (maps rows via `rowToPending`) → `{ items }`;
+  `POST /api/action` → `parseAction` → per id `getById` + `applyAction` + `writeReminderState`
+  (unknown ids skipped). `ReminderRepo` gains `listByUser`/`getById`.
+- Client: `pullAndReconcile()` (`src/reminder-pull.ts`) pulls + merges into IndexedDB on launch /
+  review open; `review.html` + `src/review-view.ts` render the active queue with Done/Snooze/Open
+  (Open also posts `action:"open"`), optimistic card updates + quiet retry on failure. SW `push` adds
+  the action buttons + carries ids/user_id; `notificationclick` routes done/snooze to `/api/action`,
+  plain tap to `/review.html`. `index.html` gains a "Review reminders →" link; `review` added to the
+  vite input + SW shell.
+
+**Delivered (verified):** `tsc` clean, **117** tests across **26** files green (105 from the 04b
+baseline + 12 new: applyAction 3, mergePulled 2, rowToPending 2, parseAction/parsePull 4,
+pullAndReconcile 1; the 2 payload tests were rewritten in place for the new signature), clean
+production build (`review.html` + `review` bundle emitted). Built TDD per task. One type-only friction
+fixed: the Notifications API `actions` option is valid at runtime but missing from the lib
+`NotificationOptions` type — asserted across. The review-view DOM, SW handlers, and the D1 `/api/pull`
++ `/api/action` paths are verified on-device; all the reconciliation/action/deserialization logic is
+unit-tested.
+
+**Still manual / open:**
+- On-device acceptance (review queue + Done/Snooze/Open, notification action buttons with app closed,
+  reinstall restore via pull, no-clobber re-pull) in `docs/manual-verification.md`.
+- A snoozed item can reappear in the review pile before its deferred time (snooze keeps it `active`
+  with a pushed-out `next_due_at`); a distinct `snoozed`-that-hides state is a deferred refinement
+  (would need the cron to flip `snoozed`→`active`).
+- Future, beyond the core loop: account-based multi-device transfer, per-tag scheduling, guided
+  onboarding/permission UX.
+
+**Artifacts:** spec `docs/superpowers/specs/2026-06-24-prd04c-reminder-interaction-design.md`,
+plan `docs/superpowers/plans/2026-06-24-prd04c-reminder-interaction.md`.
+
+**Next PRDs:** Core loop complete (PRD 01–04). Future: account transfer, per-tag scheduling, onboarding.
