@@ -351,3 +351,65 @@ flow are verified on-device (real crypto + push service + DOM), not in unit test
 plan `docs/superpowers/plans/2026-06-24-prd04b-reminder-delivery.md`.
 
 **Next PRDs:** 04c Reminder Interaction (review UI + device pull + done/snooze).
+
+---
+
+## PRD 04c — Reminder Interaction — 2026-06-24
+
+**What it is:** The closing slice of the Reminder Engine (and of the InSave core loop). 04a computes
+due items, 04b pushes the notification — 04c lets the user **act** on a reel and makes data survive a
+reinstall. It adds the device pull/read-back path from D1, a review-view UI listing the active queue,
+and Done/Snooze/Open actions reaching the server from both the review view and the notification's own
+buttons. Completes PRD 01–04.
+
+**Decisions made:**
+- Review content = the **live active queue** (all `reminder_status="active"` items, matters-first then
+  soonest-due), not a strict "due now" list — 04a's cron advances `next_due_at` on send, so a
+  due-gated view would be empty at notification-tap time. The notification count is a teaser; the view
+  is the working pile.
+- **Notification action buttons** (Done/Snooze on the push itself) — chosen over tap-to-open-only. The
+  payload now carries `user_id` + the surfaced `ids`; the SW routes a button tap straight to
+  `/api/action` (no window needed); a plain tap opens `/review.html`.
+- One **bulk `/api/action`** (1..N ids) serves both the review view (one id) and the notification
+  (the digest's ids). Reuses 04a `response.ts` via a pure `applyAction`.
+- **Reconciliation rule:** remote authoritative for the five server-owned reminder columns; local
+  keeps all device-owned content; absent-local rows inserted whole (reinstall restore). No new tables
+  or columns — 04c only reads back + writes existing reminder columns.
+
+**How it works:**
+- Pure units carry the logic: `applyAction(item, action, now)` (`src/reminder/action.ts`),
+  `mergePulled(local, remote)` (`reconcile-pull.ts`), `rowToPending(row)` (`row-to-pending.ts` —
+  D1 row → PendingCapture, topic_tags JSON→array, parse_ok int→bool), `assemblePayload(userId, due)`
+  (now with ids+user_id), and `parseAction`/`parsePull`.
+- Worker: `GET /api/pull?user_id=` → `repo.listByUser` (maps rows via `rowToPending`) → `{ items }`;
+  `POST /api/action` → `parseAction` → per id `getById` + `applyAction` + `writeReminderState`
+  (unknown ids skipped). `ReminderRepo` gains `listByUser`/`getById`.
+- Client: `pullAndReconcile()` (`src/reminder-pull.ts`) pulls + merges into IndexedDB on launch /
+  review open; `review.html` + `src/review-view.ts` render the active queue with Done/Snooze/Open
+  (Open also posts `action:"open"`), optimistic card updates + quiet retry on failure. SW `push` adds
+  the action buttons + carries ids/user_id; `notificationclick` routes done/snooze to `/api/action`,
+  plain tap to `/review.html`. `index.html` gains a "Review reminders →" link; `review` added to the
+  vite input + SW shell.
+
+**Delivered (verified):** `tsc` clean, **117** tests across **26** files green (105 from the 04b
+baseline + 12 new: applyAction 3, mergePulled 2, rowToPending 2, parseAction/parsePull 4,
+pullAndReconcile 1; the 2 payload tests were rewritten in place for the new signature), clean
+production build (`review.html` + `review` bundle emitted). Built TDD per task. One type-only friction
+fixed: the Notifications API `actions` option is valid at runtime but missing from the lib
+`NotificationOptions` type — asserted across. The review-view DOM, SW handlers, and the D1 `/api/pull`
++ `/api/action` paths are verified on-device; all the reconciliation/action/deserialization logic is
+unit-tested.
+
+**Still manual / open:**
+- On-device acceptance (review queue + Done/Snooze/Open, notification action buttons with app closed,
+  reinstall restore via pull, no-clobber re-pull) in `docs/manual-verification.md`.
+- A snoozed item can reappear in the review pile before its deferred time (snooze keeps it `active`
+  with a pushed-out `next_due_at`); a distinct `snoozed`-that-hides state is a deferred refinement
+  (would need the cron to flip `snoozed`→`active`).
+- Future, beyond the core loop: account-based multi-device transfer, per-tag scheduling, guided
+  onboarding/permission UX.
+
+**Artifacts:** spec `docs/superpowers/specs/2026-06-24-prd04c-reminder-interaction-design.md`,
+plan `docs/superpowers/plans/2026-06-24-prd04c-reminder-interaction.md`.
+
+**Next PRDs:** Core loop complete (PRD 01–04). Future: account transfer, per-tag scheduling, onboarding.

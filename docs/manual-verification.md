@@ -112,3 +112,17 @@ review-view UI, and device pull/restore arrive in 04b.
 - [ ] Two due items in one cycle still produce ONE notification (the `insave-digest` tag collapses it).
 - [ ] Unsubscribe in the browser (or use a stale endpoint) then trigger the cron → the dead row is pruned from `push_subscriptions` (404/410 → delete).
 - [ ] The VAPID private key is only a Worker secret (not in the repo); `git grep` finds no private key.
+
+## PRD 04c — Reminder Interaction (review + pull + actions)
+
+No schema changes; uses 04a/04b setup (reminder columns, VAPID, push_subscriptions).
+
+### Checklist
+- [ ] Open `/review.html` (or tap a notification) → the active reminder queue lists, matters-first; each card opens the reel in Instagram.
+- [ ] Tap **Done** on a card → in D1 the item's `reminder_status='done'` and it leaves the queue on reload.
+- [ ] Tap **Snooze** → `next_due_at` moves out, `reminder_status` stays `active`, the card leaves the list.
+- [ ] Tap **Open in Instagram** → the reel opens and the item's `ignored_count` resets to 0 in D1.
+- [ ] On the push notification, tap the **Done** / **Snooze** action button (app closed) → D1 reflects it for every item in the digest.
+- [ ] Reinstall the PWA (clear site data) → open the app → `pullAndReconcile` restores the tracked items from D1 (no data loss).
+- [ ] Re-pull after a local tag edit → the pull keeps the local tag/importance and does not resurrect a locally-dismissed item's content (reconciliation is no-clobber).
+- [ ] `POST /api/action` with an unknown id is a no-op (200); a malformed body returns 400.

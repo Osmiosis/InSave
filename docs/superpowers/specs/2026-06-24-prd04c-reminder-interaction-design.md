@@ -4,7 +4,7 @@
 **Project:** InSave
 **Source PRD:** `PRD's/04-reminder-engine.md` (§5 leaving the loop, §8.2 receiving, §9.1 read-back, §9.5 response handling)
 **Depends on:** PRD 04a (engine, `response.ts`, `ReminderRepo`, reminder state), PRD 04b (Web Push delivery, `assemblePayload`, SW push handler, `user_id`)
-**Status:** Approved for planning
+**Status:** Locked (implemented)
 
 ---
 
