@@ -6,6 +6,9 @@ export interface SharePayload {
 
 export type CaptureSource = "share_target" | "import" | "shortcut" | "clipboard";
 export type CaptureStatus = "pending" | "tagged" | "dismissed";
+export type ReminderStatus = "active" | "snoozed" | "done" | "expired";
+export type Importance = "normal" | "matters";
+export type Cadence = "often" | "balanced" | "rarely";
 
 export interface PendingCapture {
   id: string;            // client-generated UUID
@@ -23,11 +26,18 @@ export interface PendingCapture {
   description?: string;
   // Tag Queue (PRD 03). Undefined until the item is tagged.
   topic_tags?: string[];
-  importance?: "normal" | "matters";
+  importance?: Importance;
   tagged_at?: number;    // epoch ms, set on transition to "tagged"
   // Carried from backlog import at promote time; null for share-captures.
   author?: string;
   media_type?: "reel" | "post";
+  // Reminder engine (PRD 04). Server-owned (cron is the sole writer); absent until tagged.
+  user_id?: string;
+  reminder_status?: ReminderStatus;
+  next_due_at?: number;
+  cycle_count?: number;
+  ignored_count?: number;
+  last_surfaced_at?: number;
 }
 
 export type CaptureOutcome = "saved" | "dup" | "unparsed" | "error";
@@ -64,6 +74,17 @@ export interface EnrichmentResult {
   title?: string;
   thumbnail?: string;
   description?: string;
+}
+
+export interface UserSettings {
+  user_id: string;
+  quiet_start: number;   // local hour 0-23
+  quiet_end: number;     // local hour 0-23
+  timezone: string;      // IANA tz
+  cadence: Cadence;
+  reminders_paused: boolean;
+  last_digest_at?: number;
+  synced: boolean;       // local-only
 }
 
 export type { PendingStore } from "./pending-store";
