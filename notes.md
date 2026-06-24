@@ -230,3 +230,66 @@ capture) and updated all to the widened interface.
 plan `docs/superpowers/plans/2026-06-17-prd03-tag-queue.md`.
 
 **Next PRDs:** 04 Reminder Engine.
+
+---
+
+## PRD 04a — Reminder Engine Core (headless) — 2026-06-24
+
+**What it is:** The first slice of the Reminder Engine — the headless scheduling **brain**. A
+Cloudflare Cron Worker that wakes on a schedule, reads D1 for due `tagged` reels, advances them
+along an importance-keyed spaced-repetition curve, and assembles a capped, quiet-hours-respecting
+digest per user. PRD 04 was much larger than 01–03, so it was decomposed: 04a builds and fully
+unit-tests the engine with the push send **stubbed**; 04b adds the delivery skin (Web Push, review
+UI, device pull/restore).
+
+**Decisions made:**
+- Scope split: 04a = engine + data model + cron, push stubbed behind an injected
+  `notify(userId, digest)`. Deferred to 04b: Web Push (VAPID/encryption/subscriptions), review-view
+  UI + notification actions, device-side D1 pull/reconciliation, account-based multi-device transfer.
+- Identity: device-minted opaque `user_id` (UUID in IndexedDB `meta`), stamped on every write; D1 is
+  genuinely multi-user; no auth/login. Account-based transfer designed-for but deferred (a `user_id`
+  remap/merge later).
+- Reminder state is **cron-owned** (sole writer). The device and the cron write **disjoint** column
+  sets, so no last-write-wins arbitration is needed; the cron **lazy-initializes** a freshly-tagged
+  item (rather than the device seeding it — avoids a clobber on the conflict path).
+- Spacing presets (tunable, PRD §10): `matters` 1d/×1.6/8cyc/90d-age, `normal` 3d/×2.0/4cyc/45d-age.
+  Ignore back-off threshold 2 / accel ×1.5. Digest cap 5. Cadence gaps often 1d / balanced 2d (default)
+  / rarely 4d. Quiet hours 22→08. Cron hourly, emission gated.
+- Topic tags do not affect scheduling in v1 (organizational only, per PRD §7).
+
+**How it works:**
+- Pure modules in `src/reminder/`: `spacing.ts` (`initialState`/`advance`, one curve two presets,
+  age-out), `response.ts` (`markDone`/`snooze`/`markOpened`/`markIgnored` field patches),
+  `digest.ts` (`selectDue` filter+importance-order+cap, `isQuietHours` with midnight-wrap via `Intl`,
+  `cadenceGate` with matters pull-forward).
+- `worker/cron.ts` `runCron(repo, now, notify)` orchestrates per user: lazy-init → load/create
+  settings → pause/quiet/cadence gates → `selectDue` → `advance` each surfaced item (idempotency
+  guard `last_surfaced_at < cycleStart`, composed with `markIgnored`) → `notify` → stamp
+  `last_digest_at`. Talks to D1 through an injected `ReminderRepo` port.
+- `worker/d1-reminder-repo.ts` is the D1 adapter; `worker/index.ts` gains a `scheduled` handler
+  (stub `notify` logs the digest) alongside the existing `/api/sync` fetch handler;
+  `wrangler.toml` adds `[triggers] crons = ["0 * * * *"]`.
+- Data model: `PendingCapture` gains `user_id` + 5 reminder-state fields; new `UserSettings` type +
+  D1 `user_settings` table + `idx_due`; IndexedDB **v4** adds `user_settings` + `meta` stores;
+  `pending-store` mints/stamps `user_id` and backfills pre-existing records. The device `/api/sync`
+  upsert carries `user_id` but never the reminder-state columns (disjointness).
+
+**Delivered (verified):** `tsc` clean, **96** tests across **18** files green (62 prior + 34 new:
+spacing 7, response 4, digest 11, cron 7, db v4 1, pending-store identity 2, worker-sync user_id/
+disjointness 2), clean production build. Built TDD per task. The D1 repo + `scheduled` handler are
+thin adapters verified by `tsc` + build + the manual checklist (same pattern as the existing fetch
+handler); all scheduling logic is unit-tested against an in-memory fake repo + capturing `notify`.
+
+**Still manual / open:**
+- On-device / `wrangler dev --test-scheduled` acceptance (lazy-init, advance, matters-vs-normal,
+  idempotency, pause/quiet-hours, disjoint device sync) tracked in `docs/manual-verification.md`.
+- Existing remote D1 needs `ALTER TABLE` for the six new columns + the `user_settings` table /
+  `idx_due` (documented).
+- 04b: Web Push delivery, review-view UI + done/snooze actions, device D1 pull + reconciliation,
+  account-based transfer.
+- §10 tuning constants are sane defaults in one place, expected to change with real use.
+
+**Artifacts:** spec `docs/superpowers/specs/2026-06-24-prd04a-reminder-engine-core-design.md`,
+plan `docs/superpowers/plans/2026-06-24-prd04a-reminder-engine-core.md`.
+
+**Next PRDs:** 04b Reminder Delivery (Web Push + review UI + device pull).

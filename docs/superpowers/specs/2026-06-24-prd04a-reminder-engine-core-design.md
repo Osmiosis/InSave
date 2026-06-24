@@ -4,7 +4,7 @@
 **Project:** InSave
 **Source PRD:** `PRD's/04-reminder-engine.md`
 **Depends on:** PRD 01 (capture/sync), PRD 02/02b (backlog import + captions), PRD 03 (tag queue — supplies `tagged` items with `importance`, `topic_tags`, timestamps)
-**Status:** Approved for planning
+**Status:** Locked (implemented)
 
 ---
 
