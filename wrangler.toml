@@ -6,3 +6,6 @@ compatibility_date = "2024-09-23"
 binding = "DB"
 database_name = "insave"
 database_id = "REPLACE_WITH_D1_ID_AFTER_CREATE"
+
+[triggers]
+crons = ["0 * * * *"]

@@ -43,4 +43,15 @@ describe("worker sync upsert", () => {
       expect(updateClause).not.toContain(`${col} = excluded.${col}`);
     }
   });
+
+  it("carries user_id as a device-owned column", () => {
+    expect(UPSERT_SQL).toContain("user_id = excluded.user_id");
+    expect(toBind(wire({ user_id: "u1" }))[16]).toBe("u1");
+  });
+
+  it("never writes server-owned reminder-state columns from the device path", () => {
+    for (const col of ["reminder_status", "next_due_at", "cycle_count", "ignored_count", "last_surfaced_at"]) {
+      expect(UPSERT_SQL).not.toContain(col);
+    }
+  });
 });

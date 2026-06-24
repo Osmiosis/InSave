@@ -1,3 +1,6 @@
+import { runCron } from "./cron";
+import { makeD1ReminderRepo } from "./d1-reminder-repo";
+
 interface WireRecord {
   id: string;
   canonical_url: string;
@@ -15,6 +18,7 @@ interface WireRecord {
   tagged_at?: number;
   author?: string;
   media_type?: string;
+  user_id?: string;
 }
 
 interface Env {
@@ -26,8 +30,9 @@ interface Env {
 // captured_at, source, parse_ok) are write-once and never touched here.
 export const UPSERT_SQL = `INSERT INTO pending_capture
    (id, canonical_url, raw_payload, captured_at, source, status, parse_ok,
-    saved_at, title, thumbnail, description, topic_tags, importance, tagged_at, author, media_type)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    saved_at, title, thumbnail, description, topic_tags, importance, tagged_at, author, media_type,
+    user_id)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
  ON CONFLICT(id) DO UPDATE SET
    status = excluded.status,
    saved_at = excluded.saved_at,
@@ -36,7 +41,8 @@ export const UPSERT_SQL = `INSERT INTO pending_capture
    importance = excluded.importance,
    tagged_at = excluded.tagged_at,
    author = excluded.author,
-   media_type = excluded.media_type`;
+   media_type = excluded.media_type,
+   user_id = excluded.user_id`;
 
 export function toBind(r: WireRecord): unknown[] {
   return [
@@ -45,6 +51,7 @@ export function toBind(r: WireRecord): unknown[] {
     r.saved_at ?? null, r.title ?? null, r.thumbnail ?? null, r.description ?? null,
     r.topic_tags ? JSON.stringify(r.topic_tags) : null,
     r.importance ?? null, r.tagged_at ?? null, r.author ?? null, r.media_type ?? null,
+    r.user_id ?? null,
   ];
 }
 
@@ -55,6 +62,14 @@ export default {
       return handleSync(request, env);
     }
     return new Response("Not found", { status: 404 });
+  },
+
+  async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const repo = makeD1ReminderRepo(env.DB);
+    // 04a: delivery is stubbed — log the digest that WOULD be pushed. PRD 04b swaps in Web Push.
+    await runCron(repo, Date.now(), async (userId, due) => {
+      console.log(`[cron] digest for ${userId}: ${due.map((d) => d.id).join(", ")}`);
+    });
   },
 };
 
