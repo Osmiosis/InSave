@@ -9,3 +9,8 @@ database_id = "REPLACE_WITH_D1_ID_AFTER_CREATE"
 
 [triggers]
 crons = ["0 * * * *"]
+
+[vars]
+VAPID_SUBJECT = "mailto:REPLACE_WITH_CONTACT_EMAIL"
+VAPID_PUBLIC_KEY = "REPLACE_WITH_VAPID_PUBLIC_KEY"
+# VAPID_PRIVATE_KEY is set via: wrangler secret put VAPID_PRIVATE_KEY

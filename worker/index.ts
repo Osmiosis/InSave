@@ -1,5 +1,8 @@
 import { runCron } from "./cron";
 import { makeD1ReminderRepo } from "./d1-reminder-repo";
+import { makeNotify } from "./notify";
+import { makeWebPushSender } from "./web-push-sender";
+import type { PushSubscriptionRecord } from "./push-sender";
 
 interface WireRecord {
   id: string;
@@ -23,6 +26,21 @@ interface WireRecord {
 
 interface Env {
   DB: D1Database;
+  VAPID_SUBJECT: string;
+  VAPID_PUBLIC_KEY: string;
+  VAPID_PRIVATE_KEY: string;
+}
+
+export function parseSubscribe(body: unknown, now: number): PushSubscriptionRecord | null {
+  const b = body as { user_id?: unknown; subscription?: { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } } | null;
+  const user_id = b?.user_id;
+  const endpoint = b?.subscription?.endpoint;
+  const p256dh = b?.subscription?.keys?.p256dh;
+  const auth = b?.subscription?.keys?.auth;
+  if (typeof user_id !== "string" || typeof endpoint !== "string" || typeof p256dh !== "string" || typeof auth !== "string") {
+    return null;
+  }
+  return { endpoint, user_id, p256dh, auth, created_at: now };
 }
 
 // Upsert: insert new captures, and on an id conflict (a re-synced state transition)
@@ -61,15 +79,20 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/sync") {
       return handleSync(request, env);
     }
+    if (request.method === "POST" && url.pathname === "/api/subscribe") {
+      return handleSubscribe(request, env);
+    }
     return new Response("Not found", { status: 404 });
   },
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     const repo = makeD1ReminderRepo(env.DB);
-    // 04a: delivery is stubbed — log the digest that WOULD be pushed. PRD 04b swaps in Web Push.
-    await runCron(repo, Date.now(), async (userId, due) => {
-      console.log(`[cron] digest for ${userId}: ${due.map((d) => d.id).join(", ")}`);
+    const sender = makeWebPushSender({
+      subject: env.VAPID_SUBJECT,
+      publicKey: env.VAPID_PUBLIC_KEY,
+      privateKey: env.VAPID_PRIVATE_KEY,
     });
+    await runCron(repo, Date.now(), makeNotify(repo, sender));
   },
 };
 
@@ -104,6 +127,24 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
   }
 
   return new Response(JSON.stringify({ accepted }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function handleSubscribe(request: Request, env: Env): Promise<Response> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+  }
+  const record = parseSubscribe(body, Date.now());
+  if (!record) {
+    return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+  }
+  await makeD1ReminderRepo(env.DB).putSubscription(record);
+  return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
