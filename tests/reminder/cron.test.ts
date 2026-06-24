@@ -20,6 +20,9 @@ function fakeRepo(items: PendingCapture[], settings: UserSettings[] = []) {
     async getSettings(u) { return settingMap.get(u); },
     async putSettings(s) { settingMap.set(s.user_id, s); },
     async writeReminderState(id, f) { Object.assign(itemMap.get(id)!, f); },
+    async putSubscription() {},
+    async listSubscriptions() { return []; },
+    async deleteSubscription() {},
   };
   return { repo, itemMap, settingMap };
 }

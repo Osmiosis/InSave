@@ -1,5 +1,6 @@
 import type { PendingCapture, UserSettings } from "../src/types";
 import type { ReminderRepo } from "./reminder-repo";
+import type { PushSubscriptionRecord } from "./push-sender";
 
 const REMINDER_COLS = [
   "reminder_status", "next_due_at", "cycle_count", "ignored_count", "last_surfaced_at",
@@ -58,6 +59,30 @@ export function makeD1ReminderRepo(db: D1Database): ReminderRepo {
         .prepare(`UPDATE pending_capture SET ${set} WHERE id = ?`)
         .bind(...cols.map((c) => (fields as Record<string, unknown>)[c] ?? null), id)
         .run();
+    },
+
+    async putSubscription(sub) {
+      await db
+        .prepare(
+          `INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth, created_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(endpoint) DO UPDATE SET
+             user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`,
+        )
+        .bind(sub.endpoint, sub.user_id, sub.p256dh, sub.auth, sub.created_at)
+        .run();
+    },
+
+    async listSubscriptions(userId) {
+      const { results } = await db
+        .prepare(`SELECT * FROM push_subscriptions WHERE user_id = ?`)
+        .bind(userId)
+        .all<PushSubscriptionRecord>();
+      return results ?? [];
+    },
+
+    async deleteSubscription(endpoint) {
+      await db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).bind(endpoint).run();
     },
   };
 }

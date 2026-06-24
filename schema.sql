@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS user_settings (
 CREATE INDEX IF NOT EXISTS idx_due
   ON pending_capture (user_id, reminder_status, next_due_at);
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint   TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subs_user ON push_subscriptions (user_id);
+
 -- Dedupe key. Partial unique index so multiple parse_ok=false rows
 -- (canonical_url = '') don't collide.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_canonical_url
