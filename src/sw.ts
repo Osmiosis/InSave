@@ -6,7 +6,7 @@ import type { SharePayload } from "./types";
 
 declare const self: ServiceWorkerGlobalScope;
 
-const SHELL = ["/", "/index.html", "/captured.html", "/tag.html", "/manifest.webmanifest"];
+const SHELL = ["/", "/index.html", "/captured.html", "/tag.html", "/review.html", "/manifest.webmanifest"];
 const CACHE = "insave-shell-v1";
 
 // Open the IndexedDB connection once and reuse it; avoids racing parallel
@@ -72,9 +72,11 @@ async function handleShare(request: Request): Promise<Response> {
 }
 
 self.addEventListener("push", (event: PushEvent) => {
-  let data = { title: "InSave", body: "Saved reels worth revisiting", count: 0 };
+  let data: { title: string; body: string; count: number; user_id?: string; ids?: string[] } = {
+    title: "InSave", body: "Saved reels worth revisiting", count: 0,
+  };
   try {
-    if (event.data) data = { ...data, ...(event.data.json() as Partial<typeof data>) };
+    if (event.data) data = { ...data, ...(event.data.json() as typeof data) };
   } catch {
     /* malformed payload — fall back to the default copy */
   }
@@ -83,12 +85,32 @@ self.addEventListener("push", (event: PushEvent) => {
       body: data.body,
       tag: "insave-digest", // collapse repeat digests into one
       data,
-    }),
+      // `actions` is valid at runtime (Notifications API) but missing from the lib type.
+      actions: [
+        { action: "done", title: "Done" },
+        { action: "snooze", title: "Snooze" },
+      ],
+    } as NotificationOptions),
   );
 });
 
 self.addEventListener("notificationclick", (event: NotificationEvent) => {
   event.notification.close();
+  const data = (event.notification.data ?? {}) as { user_id?: string; ids?: string[] };
+
+  if ((event.action === "done" || event.action === "snooze") && data.user_id && data.ids?.length) {
+    event.waitUntil(
+      fetch("/api/action", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_id: data.user_id, ids: data.ids, action: event.action }),
+      })
+        .then(() => undefined)
+        .catch(() => undefined),
+    );
+    return;
+  }
+
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
@@ -97,7 +119,7 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
         await existing.focus();
         return;
       }
-      await self.clients.openWindow("/");
+      await self.clients.openWindow("/review.html");
     })(),
   );
 });
