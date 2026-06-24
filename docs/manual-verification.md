@@ -94,3 +94,21 @@ review-view UI, and device pull/restore arrive in 04b.
 - [ ] Triggering twice in the same hour does not double-advance `cycle_count` or log a second digest (idempotency).
 - [ ] Setting `reminders_paused=1` (or a quiet-hours window covering now) suppresses the digest.
 - [ ] A device sync of a tagged item never overwrites `reminder_status`/`next_due_at`/`cycle_count` already set by the cron; `user_id` is present on synced rows.
+
+## PRD 04b — Reminder Delivery (Web Push)
+
+### Setup
+- Generate VAPID keys once: `npx web-push generate-vapid-keys`.
+- Put the **public** key in `src/push-config.ts` (`VAPID_PUBLIC_KEY`) and `wrangler.toml` `[vars]`;
+  set the **private** key as a secret: `wrangler secret put VAPID_PRIVATE_KEY`; set `VAPID_SUBJECT`
+  to a real `mailto:` in `wrangler.toml`.
+- Create the subscriptions table: re-run `schema.sql` (its `CREATE TABLE IF NOT EXISTS` is safe), or for
+  an existing remote DB run the `CREATE TABLE push_subscriptions ...` + `idx_subs_user` statements.
+
+### Checklist
+- [ ] On the installed PWA, tap "Enable reminders" → permission prompt → a row appears in `push_subscriptions` for the device's `user_id` (`SELECT * FROM push_subscriptions`).
+- [ ] Make an item due and trigger the cron (`wrangler dev --test-scheduled` + `curl ".../__scheduled"`): a single notification "N reels worth revisiting" arrives — with InSave fully closed.
+- [ ] Tapping the notification opens/focuses InSave.
+- [ ] Two due items in one cycle still produce ONE notification (the `insave-digest` tag collapses it).
+- [ ] Unsubscribe in the browser (or use a stale endpoint) then trigger the cron → the dead row is pruned from `push_subscriptions` (404/410 → delete).
+- [ ] The VAPID private key is only a Worker secret (not in the repo); `git grep` finds no private key.

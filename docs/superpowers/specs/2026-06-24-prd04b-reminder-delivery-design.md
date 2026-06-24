@@ -4,7 +4,7 @@
 **Project:** InSave
 **Source PRD:** `PRD's/04-reminder-engine.md` (§9.6 Web Push, §6 delivery discipline)
 **Depends on:** PRD 04a (the headless engine + cron + `notify` seam + `ReminderRepo` + `user_id`)
-**Status:** Approved for planning
+**Status:** Locked (implemented)
 
 ---
 

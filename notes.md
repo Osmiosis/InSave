@@ -293,3 +293,61 @@ handler); all scheduling logic is unit-tested against an in-memory fake repo + c
 plan `docs/superpowers/plans/2026-06-24-prd04a-reminder-engine-core.md`.
 
 **Next PRDs:** 04b Reminder Delivery (Web Push + review UI + device pull).
+
+---
+
+## PRD 04b — Reminder Delivery (Web Push) — 2026-06-24
+
+**What it is:** The delivery skin over the 04a engine — makes the digests the cron already computes
+actually **reach the phone** via Web Push, even when InSave is closed. PRD 04 was sliced 04a (brain) /
+04b (delivery) / 04c (interaction); this is 04b. It replaces the 04a `notify` stub with a real Web
+Push sender, registers + stores push subscriptions, and shows the notification from the service
+worker.
+
+**Decisions made:**
+- Scope: delivery only. Deferred to 04c: the review-view UI, device D1 pull/reconciliation
+  (reinstall restore), done/snooze/open actions + endpoint. Still deferred: account transfer, guided
+  onboarding, notification action buttons (need 04c's action endpoint).
+- Web Push via a **vetted Workers-compatible library** (`@block65/webcrypto-web-push`, Web Crypto) —
+  the project's first Worker-side runtime dep, isolated entirely behind a `PushSender` port in one
+  adapter file so it's swappable.
+- Single-user identity unchanged from 04a (device-minted `user_id`); subscriptions stored in D1
+  scoped by `user_id` (not in IndexedDB — the browser's `pushManager` + D1 are the source of truth).
+- Minimal "Enable reminders" button now; full onboarding/permission UX stays out of scope.
+- One notification per digest (the `insave-digest` notification `tag` collapses repeats), honoring
+  PRD §6 batching. Dead endpoints (404/410) pruned on send.
+
+**How it works:**
+- `PushSender` port (`worker/push-sender.ts`) + `PushSubscriptionRecord`; the library lives only in
+  `worker/web-push-sender.ts` (`buildPushPayload` → `fetch(endpoint, init)`, 404/410 → `gone`).
+- `makeNotify(repo, sender)` (`worker/notify.ts`) replaces the 04a stub: loads a user's subscriptions,
+  `assemblePayload(due)` (pure, shared `src/reminder/payload.ts`), sends to each, prunes gone ones.
+  Wired into the `scheduled` handler with VAPID keys from `env`.
+- Registration: a new `POST /api/subscribe` (`parseSubscribe` → `repo.putSubscription`) + a new D1
+  `push_subscriptions` table. Client `src/push-enable.ts` requests permission, `pushManager.subscribe`,
+  and POSTs `{ user_id, subscription }`; `user_id` comes from a shared `getUserId()` factored out of
+  `pending-store` into `db.ts`.
+- Service worker gains `push` (shows the notification) + `notificationclick` (focus/open the app)
+  handlers. VAPID public key in `src/push-config.ts` + `wrangler.toml` `[vars]`; private key a Worker
+  secret.
+
+**Delivered (verified):** `tsc` clean, **105** tests across **21** files green (96 from the 04a
+baseline + 9 new: payload 2, makeNotify 4, parseSubscribe 2, getUserId 1), clean production build
+(the library stays worker-only, out of the client bundle). Built TDD per task. Two type-only frictions fixed during the
+build: the library's `Uint8Array` push body vs the Workers `fetch` `BodyInit` type, and TS 5.7's
+generic `Uint8Array<ArrayBufferLike>` vs `BufferSource` for `applicationServerKey` — both cast across
+the typing gap (valid at runtime). The library adapter, SW `push`/`notificationclick`, and the enable
+flow are verified on-device (real crypto + push service + DOM), not in unit tests.
+
+**Still manual / open:**
+- VAPID keygen (`npx web-push generate-vapid-keys`) + secret/var setup; replace the placeholders in
+  `src/push-config.ts` + `wrangler.toml`; create `push_subscriptions` in remote D1 — all in
+  `docs/manual-verification.md`.
+- On-device acceptance: enable → subscription row, cron → one notification with app closed, tap opens
+  app, stale endpoint pruned.
+- 04c: review-view UI, device D1 pull + reconciliation, done/snooze/open actions + endpoint.
+
+**Artifacts:** spec `docs/superpowers/specs/2026-06-24-prd04b-reminder-delivery-design.md`,
+plan `docs/superpowers/plans/2026-06-24-prd04b-reminder-delivery.md`.
+
+**Next PRDs:** 04c Reminder Interaction (review UI + device pull + done/snooze).
