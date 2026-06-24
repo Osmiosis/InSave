@@ -2,15 +2,21 @@ name = "insave"
 main = "worker/index.ts"
 compatibility_date = "2024-09-23"
 
+# Single Worker serves the static PWA (Vite build output) AND the /api/* endpoints.
+# A request that matches a built asset is served directly; anything else (e.g. /api/sync)
+# falls through to the Worker's fetch handler.
+[assets]
+directory = "./dist"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "insave"
-database_id = "REPLACE_WITH_D1_ID_AFTER_CREATE"
+database_id = "269f5f49-32af-44cd-9143-9640a4f83648"
 
 [triggers]
 crons = ["0 * * * *"]
 
 [vars]
-VAPID_SUBJECT = "mailto:REPLACE_WITH_CONTACT_EMAIL"
-VAPID_PUBLIC_KEY = "REPLACE_WITH_VAPID_PUBLIC_KEY"
+VAPID_SUBJECT = "mailto:kgspune@gmail.com"
+VAPID_PUBLIC_KEY = "BJeDm2fJtqPlVSjnFRZOKav5k5uV5IlTszRDb8VcMTdeby9Hb461I376KRIi12oY_IkrcrQurHgAT_6NmcVi_pc"
 # VAPID_PRIVATE_KEY is set via: wrangler secret put VAPID_PRIVATE_KEY
