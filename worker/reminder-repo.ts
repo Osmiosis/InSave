@@ -9,6 +9,8 @@ export interface ReminderRepo {
   putSubscription(sub: PushSubscriptionRecord): Promise<void>;
   listSubscriptions(userId: string): Promise<PushSubscriptionRecord[]>;
   deleteSubscription(endpoint: string): Promise<void>;
+  listByUser(userId: string): Promise<PendingCapture[]>;
+  getById(id: string): Promise<PendingCapture | undefined>;
 }
 
 export function defaultSettings(userId: string, timezone = "UTC"): UserSettings {

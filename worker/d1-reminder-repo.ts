@@ -1,6 +1,7 @@
 import type { PendingCapture, UserSettings } from "../src/types";
 import type { ReminderRepo } from "./reminder-repo";
 import type { PushSubscriptionRecord } from "./push-sender";
+import { rowToPending } from "../src/reminder/row-to-pending";
 
 const REMINDER_COLS = [
   "reminder_status", "next_due_at", "cycle_count", "ignored_count", "last_surfaced_at",
@@ -83,6 +84,22 @@ export function makeD1ReminderRepo(db: D1Database): ReminderRepo {
 
     async deleteSubscription(endpoint) {
       await db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).bind(endpoint).run();
+    },
+
+    async listByUser(userId) {
+      const { results } = await db
+        .prepare(`SELECT * FROM pending_capture WHERE user_id = ?`)
+        .bind(userId)
+        .all<Record<string, unknown>>();
+      return (results ?? []).map(rowToPending);
+    },
+
+    async getById(id) {
+      const row = await db
+        .prepare(`SELECT * FROM pending_capture WHERE id = ?`)
+        .bind(id)
+        .first<Record<string, unknown>>();
+      return row ? rowToPending(row) : undefined;
     },
   };
 }

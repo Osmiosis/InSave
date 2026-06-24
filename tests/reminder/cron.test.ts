@@ -23,6 +23,8 @@ function fakeRepo(items: PendingCapture[], settings: UserSettings[] = []) {
     async putSubscription() {},
     async listSubscriptions() { return []; },
     async deleteSubscription() {},
+    async listByUser() { return []; },
+    async getById() { return undefined; },
   };
   return { repo, itemMap, settingMap };
 }
