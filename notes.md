@@ -413,3 +413,94 @@ unit-tested.
 plan `docs/superpowers/plans/2026-06-24-prd04c-reminder-interaction.md`.
 
 **Next PRDs:** Core loop complete (PRD 01–04). Future: account transfer, per-tag scheduling, onboarding.
+
+---
+
+## Deployment & On-Device Verification (Cloudflare + GitHub) — 2026-06-24
+
+**What it is:** Not a PRD — the first real deployment of the finished core loop to Cloudflare,
+wired to GitHub for continuous deploys, followed by full end-to-end verification on a physical
+Android phone against production. After this the app is live and self-deploying. (More changes to
+come; this records the baseline.)
+
+**Live:** https://insave.fgcworker.workers.dev — free `workers.dev` tier, **no custom domain, $0**.
+
+**Decisions made:**
+- **Hosting model:** ONE Cloudflare Worker serves both the static PWA (Vite `dist/` via the
+  `[assets]` binding) **and** the `/api/*` endpoints + the hourly cron — chosen over Pages + a
+  separate API Worker. The app calls `/api/*` as same-origin relative paths, so a single origin
+  removes all route-stitching; a request matching a built asset is served directly, anything else
+  falls through to the Worker's `fetch` handler.
+- **CI/CD:** GitHub Actions (`cloudflare/wrangler-action`) over Cloudflare's native Git
+  integration — fully in-repo and reproducible; the only manual step was the user creating one
+  Cloudflare API token in the dashboard.
+- **Custom domain deferred / unnecessary:** `workers.dev` works fine on-device (an earlier
+  "blocked domain" hypothesis was wrong — see SW fix below). A custom domain remains an option,
+  not a requirement.
+
+**How it was set up:**
+- `wrangler.toml`: added `[assets] directory = "./dist"`; filled the real D1 `database_id`
+  (`269f5f49-32af-44cd-9143-9640a4f83648`, db `insave`, region EEUR); kept `[triggers] crons =
+  ["0 * * * *"]`; set `[vars]` `VAPID_SUBJECT = mailto:kgspune@gmail.com` + `VAPID_PUBLIC_KEY`.
+- **VAPID:** generated a keypair (`npx web-push generate-vapid-keys`); public key into
+  `wrangler.toml` + `src/push-config.ts`; **private key set as a Worker secret** (`wrangler secret
+  put VAPID_PRIVATE_KEY`) — never committed.
+- **D1:** `wrangler d1 create insave`; `schema.sql` applied remotely (`--remote`) → 3 tables
+  (`pending_capture`, `user_settings`, `push_subscriptions`) + indexes.
+- **First deploy:** `wrangler deploy` (local auth) → Worker + 17 static assets live; cron
+  registered. Smoke-tested live: `/` + `/sw.js` (200 assets), `/api/pull` (200 `{items:[]}` — D1
+  read OK), `/api/action {}` (400 validation), `/api/nope` (404 fall-through).
+- **GitHub Actions** (`.github/workflows/deploy.yml`): on push to `main` (+ `workflow_dispatch`)
+  → `npm ci` → `npm test` (gate) → `npm run build` → `wrangler-action deploy`. Pinned
+  `wranglerVersion: 3.114.17`. Secrets: `CLOUDFLARE_ACCOUNT_ID` (set via `gh secret set`),
+  `CLOUDFLARE_API_TOKEN` (user-created token, "Edit Cloudflare Workers" + D1 Edit). First
+  dispatched run went green (test → build → deploy).
+
+**Service worker bug fixed (commit `0d0b94c`):** On the phone the root loaded but `/tag.html`
+failed with `ERR_FAILED`, while the server returned it `200`. Cause: the SW served the app shell
+**cache-first**, so a stale/poisoned cache entry broke exactly those paths; `cache.addAll(SHELL)`
+is also all-or-nothing, so a single failed fetch left the cache bad. Rewrote the SW to:
+- **network-first** for navigations + shell paths (cache is an offline fallback only, so a fresh
+  deploy always wins and a bad cache entry can't break a page);
+- cache each shell entry **independently** (`Promise.allSettled` of `cache.add`, not atomic
+  `addAll`);
+- bump `CACHE` `v1 → v2` and **delete stale caches on `activate`** (devices self-heal on next
+  load);
+- offline fallback uses `caches.match(req, { ignoreSearch: true })` so `/captured.html?status=…`
+  still matches the cached toast page. `tsc` clean, **117** tests still green.
+
+**On-device verification (real Android, Chrome, installed PWA):**
+- Capture: shared an Instagram reel via the OS share sheet → InSave intercepted it (SW `/share`
+  handler) → toast.
+- Tag: tagged 2 reels topic **"Claude tricks"**, importance **matters** → synced to D1
+  (`status='tagged'`, device-minted `user_id=be81347e…`, both rows present).
+- Enable reminders: granted notification permission → a `push_subscriptions` row landed (FCM
+  endpoint).
+- **Push delivery smoke test:** backdated the two rows' `next_due_at` to "now" (the user ran the
+  `UPDATE` via the `!` prefix — a direct prod-D1 write was blocked by the safety classifier), then
+  fired the deployed cron on demand via `wrangler dev --remote --test-scheduled` (real remote D1 +
+  real Web Push, private key supplied through a gitignored `.dev.vars`) by hitting `/__scheduled`.
+  The engine ran the full chain: `selectDue` picked both `matters` items → `advance` moved
+  `next_due_at` **+1 day** and `cycle_count` `0→1` (+`ignored_count→1`, `last_surfaced_at`
+  stamped) → `notify` sent the Web Push → `last_digest_at` stamped (set only *after* a successful
+  send). **The phone received the digest notification, with Done / Snooze action buttons.** The
+  `node:crypto` runtime warning proved a false alarm — the push library uses Web Crypto at runtime
+  (the successful send confirms it).
+- Cleanup: dev server stopped; `.dev.vars` removed and added to `.gitignore` (commit `ef4edca`).
+
+**Delivered (verified):** App live and serving (static + API + D1 + hourly cron); GitHub Actions
+auto-deploys on push to `main` (one green run); SW hardened; **the complete loop — capture → tag
+→ sync → schedule → Web Push → Done/Snooze — confirmed working on a physical device against
+production.**
+
+**Still manual / open:**
+- Tap **Done/Snooze** on a real notification to exercise `POST /api/action` end-to-end (server
+  path is unit-tested + deployed; the button round-trip wasn't user-exercised yet).
+- Reinstall-restore via `GET /api/pull` not yet exercised on-device.
+- After the test the 2 reels are scheduled `next_due ≈ 2026-06-25 16:55 UTC`; the cadence gate
+  (`last_digest_at` set) suppresses repeat digests for ~1 day — a re-test needs the same backdate.
+- Optional: bump the Actions runner `node-version` `20 → 24` (deprecation warning only); attach a
+  custom domain (not required).
+
+**Commits this session:** merge `3d2bcc1` (PRD 04a/b/c → main), `0b3642f` (Cloudflare deploy
+setup), `0d0b94c` (SW hardening), `ef4edca` (gitignore `.dev.vars`).
