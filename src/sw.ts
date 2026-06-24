@@ -7,22 +7,34 @@ import type { SharePayload } from "./types";
 declare const self: ServiceWorkerGlobalScope;
 
 const SHELL = ["/", "/index.html", "/captured.html", "/tag.html", "/review.html", "/manifest.webmanifest"];
-const CACHE = "insave-shell-v1";
+// Bump on any SW behavior change so activate() purges the previous cache.
+const CACHE = "insave-shell-v2";
 
 // Open the IndexedDB connection once and reuse it; avoids racing parallel
 // openDB calls across activate + overlapping share events.
 const storePromise = createPendingStore();
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(CACHE);
+      // Cache each shell entry independently: one failed fetch must NOT abort the
+      // rest (cache.addAll is all-or-nothing and was leaving the cache poisoned).
+      await Promise.allSettled(SHELL.map((u) => cache.add(u)));
+      await self.skipWaiting();
+    })(),
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
+      // Drop any stale caches from earlier SW versions.
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
       const store = await storePromise;
-      await drainSync(store); // opportunistic drain on activation
+      await drainSync(store).catch(() => {}); // opportunistic drain; never block activation
     })(),
   );
 });
@@ -36,10 +48,26 @@ self.addEventListener("fetch", (event: FetchEvent) => {
     return;
   }
 
-  // Cache-first for the app shell so /captured loads offline.
-  if (event.request.method === "GET" && SHELL.includes(url.pathname)) {
+  // App-shell navigations: network-first so a fresh deploy always wins and a stale
+  // cache entry can never break a page. Cache is only a fallback when offline.
+  if (event.request.method === "GET" && (event.request.mode === "navigate" || SHELL.includes(url.pathname))) {
     event.respondWith(
-      caches.match(event.request).then((hit) => hit ?? fetch(event.request)),
+      (async () => {
+        try {
+          const res = await fetch(event.request);
+          if (SHELL.includes(url.pathname)) {
+            const cache = await caches.open(CACHE);
+            cache.put(event.request, res.clone()).catch(() => {}); // refresh; ignore quota errors
+          }
+          return res;
+        } catch {
+          // Offline: serve the cached page (ignoreSearch so /captured.html?status=… matches).
+          const cached = await caches.match(event.request, { ignoreSearch: true });
+          if (cached) return cached;
+          const shell = (await caches.match("/index.html")) ?? (await caches.match("/"));
+          return shell ?? new Response("Offline", { status: 503, headers: { "content-type": "text/plain" } });
+        }
+      })(),
     );
   }
 });
