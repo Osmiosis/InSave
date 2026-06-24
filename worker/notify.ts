@@ -7,7 +7,7 @@ export function makeNotify(repo: ReminderRepo, sender: PushSender): Notify {
   return async (userId, due) => {
     const subs = await repo.listSubscriptions(userId);
     if (subs.length === 0) return;
-    const payload = assemblePayload(due);
+    const payload = assemblePayload(userId, due);
     for (const sub of subs) {
       const res = await sender.send(sub, payload);
       if (res.gone) await repo.deleteSubscription(sub.endpoint);
