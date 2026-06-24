@@ -2,3 +2,6 @@ node_modules/
 dist/
 .wrangler/
 *.local
+
+# wrangler local secrets (never commit)
+.dev.vars
