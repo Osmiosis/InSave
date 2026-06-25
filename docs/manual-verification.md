@@ -126,3 +126,21 @@ No schema changes; uses 04a/04b setup (reminder columns, VAPID, push_subscriptio
 - [ ] Reinstall the PWA (clear site data) → open the app → `pullAndReconcile` restores the tracked items from D1 (no data loss).
 - [ ] Re-pull after a local tag edit → the pull keeps the local tag/importance and does not resurrect a locally-dismissed item's content (reconciliation is no-clobber).
 - [ ] `POST /api/action` with an unknown id is a no-op (200); a malformed body returns 400.
+
+## PRD 05a — Collections (remote D1 migration)
+
+Apply once against the deployed DB (existing rows untouched; `collection_id` null ≡ "Saved"):
+
+    npx wrangler d1 execute insave --remote --command \
+      "ALTER TABLE pending_capture ADD COLUMN collection_id TEXT;"
+    npx wrangler d1 execute insave --remote --command \
+      "CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, is_default INTEGER NOT NULL DEFAULT 0);"
+    npx wrangler d1 execute insave --remote --command \
+      "CREATE INDEX IF NOT EXISTS idx_collections_user ON collections (user_id);"
+    npx wrangler d1 execute insave --remote --command \
+      "CREATE INDEX IF NOT EXISTS idx_collection ON pending_capture (user_id, collection_id);"
+
+### Checklist
+- [ ] After migration, capture an item (no collection chosen) → in D1 its `collection_id` is NULL and it reads as "Saved".
+- [ ] Move an item to a new collection → `/api/sync` round-trips `collection_id`; D1 reflects it; reminder columns unchanged.
+- [ ] Collections list syncs via `/api/collections`; "Saved" is `is_default=1`, exactly one per user, and cannot be deleted.
