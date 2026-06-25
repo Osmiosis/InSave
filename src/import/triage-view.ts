@@ -134,6 +134,7 @@ function renderItem(item: ImportedItem): HTMLElement {
     await keep(item);
     li.classList.add("kept");
     keepBtn.disabled = true;
+    keepToBtn.disabled = true;
   });
 
   const keepToBtn = document.createElement("button");

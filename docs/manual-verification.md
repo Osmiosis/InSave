@@ -65,7 +65,6 @@ Requires a real "Download Your Information" export from Instagram.
   `wrangler d1 execute insave --command "ALTER TABLE pending_capture ADD COLUMN topic_tags TEXT; ALTER TABLE pending_capture ADD COLUMN importance TEXT; ALTER TABLE pending_capture ADD COLUMN tagged_at INTEGER; ALTER TABLE pending_capture ADD COLUMN author TEXT; ALTER TABLE pending_capture ADD COLUMN media_type TEXT;"`
 
 ### Checklist (PRD §10)
-- [ ] `/tag.html` lists only `pending` items (captured + promoted) together, newest first.
 - [ ] First run (no tags yet) shows greyed-out non-binding example chips; they do not apply.
 - [ ] Typing a new tag + Tag processes the item; that tag appears as a real one-tap chip next session.
 - [ ] Tapping an existing chip processes a typical item in a single tap.
