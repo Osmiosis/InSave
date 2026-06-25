@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS pending_capture (
   cycle_count      INTEGER,
   ignored_count    INTEGER,
   last_surfaced_at INTEGER,
-  collection_id    TEXT
+  collection_id    TEXT,
+  deadline_at      INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS user_settings (

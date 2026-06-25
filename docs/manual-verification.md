@@ -179,3 +179,24 @@ No schema change (05a covered it). Reinstall/refresh once so the SW serves the n
 - [ ] Old `/tag.html` no longer resolves; `/cleanup.html` loads (SW cache bumped to v4).
 - [ ] Import triage: "Keep" still promotes to "Saved" in one tap; "Keep to…" / "Keep all to…" promote into the chosen collection — verify `collection_id` in D1 after sync; reminder columns untouched.
 - [ ] Promoting a backlog item with no collection choice lands it in "Saved" (no `collection_id`).
+
+## PRD 06a — Importance tiers + deadlines (remote D1 migration)
+
+Apply once against the deployed DB (existing rows untouched; `deadline_at` null ≡ no deadline):
+
+    npx wrangler d1 execute insave --remote --command \
+      "ALTER TABLE pending_capture ADD COLUMN deadline_at INTEGER;"
+    npx wrangler d1 execute insave --remote --command \
+      "UPDATE pending_capture SET importance = 'high' WHERE importance = 'matters';"
+
+Ordering: run this BEFORE deploying the 06a worker (the cron/sync read `deadline_at`). The
+`matters→high` UPDATE is a one-time value remap; the client also coerces `matters→high` at read time
+(`normalizeImportance`) and rewrites local IndexedDB on open, so the system is correct even before the
+remote UPDATE runs — but run it so D1 values are clean.
+
+### Checklist (PRD 06a)
+- [ ] After migration, an item with `importance='high'` resurfaces sooner/persists longer than
+      `normal`; `low` is wide and ages out fast.
+- [ ] A pre-existing `matters` row reads as `high` after pull and after the local open-time migration.
+- [ ] Setting a future `deadline_at` keeps the item quiet until the deadline, then it surfaces; a
+      snooze afterwards resumes tier spacing; reminder-state columns are never written by the device.
