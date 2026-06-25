@@ -504,3 +504,30 @@ production.**
 
 **Commits this session:** merge `3d2bcc1` (PRD 04a/b/c → main), `0b3642f` (Cloudflare deploy
 setup), `0d0b94c` (SW hardening), `ef4edca` (gitignore `.dev.vars`).
+
+---
+
+## PRD 05 — Collections (capture-time organization)
+
+**Why:** All 20 trial users rejected tag-later ("if we're too lazy to stop doomscrolling, who's
+going to tag afterward?"). Fix: organize like Instagram — save into **collections at capture**,
+when motivation is highest. Collections become the primary organization; tagging (PRD 03) is
+**demoted** to an optional cleanup view, not deleted. Zero-tap capture must stay zero-tap: no
+choice → drops into the system **"Saved"** collection; a specific collection is a one-tap upgrade.
+
+**Split (decided 2026-06-25):** two phases.
+- **05a — data + sync foundation (in progress):** `Collection` entity + per-user undeletable
+  "Saved" default; `collection_id` on items with the rule **null ≡ "Saved"** (so capture stays
+  zero-write and no migration is needed); item `move`; collections sync to D1 as a **device-owned**
+  field — `collection_id` rides the existing `/api/sync`, the collections *list* gets a new
+  `POST/GET /api/collections` rail; pull-safety via existing `mergePulled` (server pull can't
+  clobber a local move). All headless/TDD. IndexedDB v4→v5; D1 gains `collections` table +
+  `collection_id` column.
+- **05b — UI (next):** zero-tap capture-chip surface (+ inline "+ New" off the default path),
+  collections-as-home view, cleanup view over "Saved" (repurposed tag-view), backlog-promote →
+  same picker.
+
+**Brainstorm decisions:** inline "+ New" allowed at capture (05b); **no** tag→collection migration
+(existing items keep `topic_tags` hidden, all start in "Saved"); cleanup view built in 05b.
+
+**Design spec:** `docs/superpowers/specs/2026-06-25-prd05a-collections-data-sync-design.md`.
