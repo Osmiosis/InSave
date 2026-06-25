@@ -7,7 +7,7 @@ function item(over: Partial<PendingCapture> = {}): PendingCapture {
   return {
     id: "i", canonical_url: "u", raw_payload: "{}", captured_at: 0,
     source: "import", status: "tagged", parse_ok: true, synced: true,
-    importance: "matters", reminder_status: "active", cycle_count: 2, ignored_count: 3, ...over,
+    importance: "high", reminder_status: "active", cycle_count: 2, ignored_count: 3, ...over,
   };
 }
 
@@ -18,7 +18,7 @@ describe("applyAction", () => {
 
   it("snooze defers one base interval and stays active", () => {
     expect(applyAction(item(), "snooze", 1000)).toEqual({
-      reminder_status: "active", next_due_at: 1000 + presetFor("matters").initialDelay,
+      reminder_status: "active", next_due_at: 1000 + presetFor("high").initialDelay,
     });
   });
 

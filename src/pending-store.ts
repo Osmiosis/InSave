@@ -7,7 +7,7 @@ export interface PendingStore {
   listUnsynced(): Promise<PendingCapture[]>;
   markSynced(ids: string[]): Promise<void>;
   listByStatus(status: CaptureStatus): Promise<PendingCapture[]>;
-  tag(id: string, opts: { topic_tags: string[]; importance?: "normal" | "matters" }): Promise<void>;
+  tag(id: string, opts: { topic_tags: string[]; importance?: "normal" | "high" | "low" }): Promise<void>;
   dismiss(id: string): Promise<void>;
   restore(id: string): Promise<void>;
   listDistinctTags(): Promise<string[]>;

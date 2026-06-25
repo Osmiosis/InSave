@@ -1,5 +1,5 @@
 import type { PendingCapture, UserSettings } from "../types";
-import { DAY } from "./spacing";
+import { DAY, normalizeImportance } from "./spacing";
 
 export const DIGEST_CAP = 5;
 export const CADENCE_GAP: Record<UserSettings["cadence"], number> = {
@@ -14,7 +14,8 @@ export function selectDue(
   now: number,
 ): PendingCapture[] {
   if (settings.reminders_paused) return [];
-  const rank = (i: PendingCapture) => (i.importance === "matters" ? 0 : 1);
+  const order: Record<string, number> = { high: 0, normal: 1, low: 2 };
+  const rank = (i: PendingCapture) => order[normalizeImportance(i.importance)];
   return items
     .filter((i) => i.reminder_status === "active" && (i.next_due_at ?? Infinity) <= now)
     .sort((a, b) => rank(a) - rank(b) || (a.next_due_at ?? 0) - (b.next_due_at ?? 0))

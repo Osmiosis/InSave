@@ -9,17 +9,24 @@ export interface Preset {
   maxAge: number;
 }
 
-// Tuning values (PRD 04 §10) — expect to adjust against a real backlog.
+export function normalizeImportance(raw: unknown): Importance {
+  if (raw === "low" || raw === "normal" || raw === "high") return raw;
+  if (raw === "matters") return "high"; // legacy PRD 03 value
+  return "normal";                       // null / undefined / unknown
+}
+
+// Tuning values (PRD 06a §3.1) — expect to adjust against a real backlog.
 export const PRESETS: Record<Importance, Preset> = {
-  matters: { initialDelay: 1 * DAY, growth: 1.6, maxCycles: 8, maxAge: 90 * DAY },
+  high:   { initialDelay: 1 * DAY, growth: 1.6, maxCycles: 8, maxAge: 90 * DAY }, // was "matters"
   normal: { initialDelay: 3 * DAY, growth: 2.0, maxCycles: 4, maxAge: 45 * DAY },
+  low:    { initialDelay: 7 * DAY, growth: 2.5, maxCycles: 2, maxAge: 21 * DAY },
 };
 
 export const IGNORE_THRESHOLD = 2;
 export const IGNORE_ACCEL = 1.5;
 
-export function presetFor(importance: Importance | undefined): Preset {
-  return PRESETS[importance ?? "normal"];
+export function presetFor(importance: unknown): Preset {
+  return PRESETS[normalizeImportance(importance)];
 }
 
 export interface ReminderState {

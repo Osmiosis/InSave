@@ -66,13 +66,13 @@ describe("pending-store", () => {
   it("tags an item: sets status, tagged_at, tags, importance, unsynced", async () => {
     const store = await createPendingStore(() => 7777);
     await store.put(rec({ id: "a", canonical_url: "u-a", synced: true }));
-    await store.tag("a", { topic_tags: ["claude tricks"], importance: "matters" });
+    await store.tag("a", { topic_tags: ["claude tricks"], importance: "high" });
     const [r] = await store.listByStatus("tagged");
     expect(r.id).toBe("a");
     expect(r.status).toBe("tagged");
     expect(r.tagged_at).toBe(7777);
     expect(r.topic_tags).toEqual(["claude tricks"]);
-    expect(r.importance).toBe("matters");
+    expect(r.importance).toBe("high");
     expect(r.synced).toBe(false);
   });
 

@@ -1,5 +1,5 @@
 import type { PendingCapture } from "../src/types";
-import { initialState, advance } from "../src/reminder/spacing";
+import { initialState, advance, normalizeImportance } from "../src/reminder/spacing";
 import { markIgnored } from "../src/reminder/response";
 import { selectDue, isQuietHours, cadenceGate } from "../src/reminder/digest";
 import { defaultSettings, type ReminderRepo } from "./reminder-repo";
@@ -37,11 +37,11 @@ export async function runCron(repo: ReminderRepo, now: number, notify: Notify): 
     }
     if (settings.reminders_paused || isQuietHours(settings, now)) continue;
 
-    // 3. Select due items; gate on cadence (matters can pull forward).
+    // 3. Select due items; gate on cadence (high can pull forward).
     const due = selectDue(items, settings, now);
     if (due.length === 0) continue;
-    const hasMatters = due.some((d) => d.importance === "matters");
-    if (!cadenceGate(settings, now, hasMatters)) continue;
+    const hasHigh = due.some((d) => normalizeImportance(d.importance) === "high");
+    if (!cadenceGate(settings, now, hasHigh)) continue;
 
     // 4. Advance each surfaced item (idempotency guard), then notify.
     for (const it of due) {

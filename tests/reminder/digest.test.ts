@@ -26,13 +26,22 @@ describe("selectDue", () => {
     expect(due.map((i) => i.id)).toEqual(["a"]);
   });
 
-  it("orders matters before normal, then most-overdue first", () => {
+  it("orders high before normal, then most-overdue first", () => {
     const due = selectDue([
       item({ id: "n1", importance: "normal", next_due_at: 10 }),
-      item({ id: "m1", importance: "matters", next_due_at: 900 }),
-      item({ id: "m2", importance: "matters", next_due_at: 100 }),
+      item({ id: "m1", importance: "high", next_due_at: 900 }),
+      item({ id: "m2", importance: "high", next_due_at: 100 }),
     ], settings(), 1000);
     expect(due.map((i) => i.id)).toEqual(["m2", "m1", "n1"]);
+  });
+
+  it("ranks high before normal before low", () => {
+    const due = selectDue([
+      item({ id: "lo", importance: "low", next_due_at: 1 }),
+      item({ id: "hi", importance: "high", next_due_at: 1 }),
+      item({ id: "no", importance: "normal", next_due_at: 1 }),
+    ], settings(), 1000);
+    expect(due.map((i) => i.id)).toEqual(["hi", "no", "lo"]);
   });
 
   it("excludes non-active items", () => {
@@ -72,7 +81,7 @@ describe("cadenceGate", () => {
   it("blocks within the balanced min-gap", () => {
     expect(cadenceGate(settings({ last_digest_at: 0 }), CADENCE_GAP.balanced - 1, false)).toBe(false);
   });
-  it("a matters item pulls the gap forward to the often interval", () => {
+  it("a high item pulls the gap forward to the often interval", () => {
     const now = CADENCE_GAP.often + 1;
     expect(cadenceGate(settings({ last_digest_at: 0 }), now, false)).toBe(false);
     expect(cadenceGate(settings({ last_digest_at: 0 }), now, true)).toBe(true);

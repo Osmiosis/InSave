@@ -17,9 +17,9 @@ describe("response", () => {
   });
 
   it("snooze defers one base interval, stays active, no ignore penalty", () => {
-    const r = snooze(item({ importance: "matters" }), 1000);
+    const r = snooze(item({ importance: "high" }), 1000);
     expect(r.reminder_status).toBe("active");
-    expect(r.next_due_at).toBe(1000 + presetFor("matters").initialDelay);
+    expect(r.next_due_at).toBe(1000 + presetFor("high").initialDelay);
     expect(r).not.toHaveProperty("ignored_count");
   });
 

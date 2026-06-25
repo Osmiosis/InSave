@@ -2,6 +2,7 @@ import { pullAndReconcile } from "./reminder-pull";
 import { createPendingStore } from "./pending-store";
 import { getUserId } from "./db";
 import type { PendingCapture } from "./types";
+import { normalizeImportance } from "./reminder/spacing";
 
 const listEl = document.getElementById("list")!;
 const emptyEl = document.getElementById("empty")!;
@@ -36,7 +37,8 @@ async function main(): Promise<void> {
   const items = (await store.listByStatus("tagged"))
     .filter((i) => i.reminder_status === "active")
     .sort((a, b) => {
-      const rank = (x: PendingCapture) => (x.importance === "matters" ? 0 : 1);
+      const order: Record<string, number> = { high: 0, normal: 1, low: 2 };
+      const rank = (x: PendingCapture) => order[normalizeImportance(x.importance)];
       return rank(a) - rank(b) || (a.next_due_at ?? 0) - (b.next_due_at ?? 0);
     });
 

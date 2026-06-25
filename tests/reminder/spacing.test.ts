@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { initialState, advance, PRESETS, DAY } from "../../src/reminder/spacing";
+import { initialState, advance, PRESETS, DAY, presetFor, normalizeImportance } from "../../src/reminder/spacing";
 import type { PendingCapture } from "../../src/types";
 
 function item(over: Partial<PendingCapture> = {}): PendingCapture {
@@ -13,9 +13,9 @@ function item(over: Partial<PendingCapture> = {}): PendingCapture {
 
 describe("spacing.initialState", () => {
   it("seeds an active item due after the importance initial delay", () => {
-    expect(initialState("matters", 1000)).toEqual({
+    expect(initialState("high", 1000)).toEqual({
       reminder_status: "active", cycle_count: 0, ignored_count: 0,
-      next_due_at: 1000 + PRESETS.matters.initialDelay,
+      next_due_at: 1000 + PRESETS.high.initialDelay,
     });
   });
   it("defaults undefined importance to normal", () => {
@@ -32,8 +32,8 @@ describe("spacing.advance", () => {
     expect(a1.next_due_at).toBe(PRESETS.normal.initialDelay * 2); // 3d * 2^1
   });
 
-  it("matters resurfaces sooner than normal at the same cycle", () => {
-    const m = advance(item({ importance: "matters", cycle_count: 0 }), 0).next_due_at;
+  it("high resurfaces sooner than normal at the same cycle", () => {
+    const m = advance(item({ importance: "high", cycle_count: 0 }), 0).next_due_at;
     const n = advance(item({ importance: "normal", cycle_count: 0 }), 0).next_due_at;
     expect(m).toBeLessThan(n);
   });
@@ -44,12 +44,41 @@ describe("spacing.advance", () => {
   });
 
   it("expires past maxAge even below maxCycles", () => {
-    const old = item({ importance: "matters", cycle_count: 1, tagged_at: 0 });
-    const a = advance(old, PRESETS.matters.maxAge + DAY);
+    const old = item({ importance: "high", cycle_count: 1, tagged_at: 0 });
+    const a = advance(old, PRESETS.high.maxAge + DAY);
     expect(a.reminder_status).toBe("expired");
   });
 
   it("records last_surfaced_at = now", () => {
     expect(advance(item(), 5555).last_surfaced_at).toBe(5555);
+  });
+});
+
+describe("normalizeImportance", () => {
+  it("passes low/normal/high through", () => {
+    expect(normalizeImportance("low")).toBe("low");
+    expect(normalizeImportance("normal")).toBe("normal");
+    expect(normalizeImportance("high")).toBe("high");
+  });
+  it("maps legacy matters to high", () => {
+    expect(normalizeImportance("matters")).toBe("high");
+  });
+  it("defaults null/undefined/unknown to normal", () => {
+    expect(normalizeImportance(undefined)).toBe("normal");
+    expect(normalizeImportance(null)).toBe("normal");
+    expect(normalizeImportance("garbage")).toBe("normal");
+  });
+});
+
+describe("spacing tiers", () => {
+  it("has three distinct presets; low is the widest initial gap, high the smallest", () => {
+    expect(PRESETS.high.initialDelay).toBeLessThan(PRESETS.normal.initialDelay);
+    expect(PRESETS.normal.initialDelay).toBeLessThan(PRESETS.low.initialDelay);
+  });
+  it("presetFor maps legacy matters to the high preset", () => {
+    expect(presetFor("matters")).toBe(PRESETS.high);
+  });
+  it("presetFor defaults unknown to the normal preset", () => {
+    expect(presetFor(undefined)).toBe(PRESETS.normal);
   });
 });

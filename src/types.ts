@@ -7,7 +7,7 @@ export interface SharePayload {
 export type CaptureSource = "share_target" | "import" | "shortcut" | "clipboard";
 export type CaptureStatus = "pending" | "tagged" | "dismissed";
 export type ReminderStatus = "active" | "snoozed" | "done" | "expired";
-export type Importance = "normal" | "matters";
+export type Importance = "low" | "normal" | "high";
 export type Cadence = "often" | "balanced" | "rarely";
 
 export interface PendingCapture {
@@ -27,6 +27,7 @@ export interface PendingCapture {
   // Tag Queue (PRD 03). Undefined until the item is tagged.
   topic_tags?: string[];
   importance?: Importance;
+  deadline_at?: number;   // epoch ms; null/undefined ≡ no deadline (device-owned)
   tagged_at?: number;    // epoch ms, set on transition to "tagged"
   // Collections (PRD 05). null/undefined ≡ the user's "Saved" collection.
   collection_id?: string;

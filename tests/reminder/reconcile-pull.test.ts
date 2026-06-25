@@ -16,12 +16,12 @@ describe("mergePulled", () => {
   });
 
   it("overlays only the server-owned fields, keeping local device content", () => {
-    const local = rec({ topic_tags: ["gym"], importance: "matters", status: "tagged", reminder_status: "active", cycle_count: 1, synced: false });
+    const local = rec({ topic_tags: ["gym"], importance: "high", status: "tagged", reminder_status: "active", cycle_count: 1, synced: false });
     const remote = rec({ topic_tags: ["SERVER-WINS?"], importance: "normal", status: "dismissed", reminder_status: "expired", next_due_at: 99, cycle_count: 7, ignored_count: 2, last_surfaced_at: 50 });
     const merged = mergePulled(local, remote);
     // device-owned kept from local:
     expect(merged.topic_tags).toEqual(["gym"]);
-    expect(merged.importance).toBe("matters");
+    expect(merged.importance).toBe("high");
     expect(merged.status).toBe("tagged");
     expect(merged.synced).toBe(false);
     // server-owned taken from remote:
