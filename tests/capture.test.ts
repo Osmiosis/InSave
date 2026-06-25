@@ -22,6 +22,8 @@ function fakeStore(seed: PendingCapture[] = []) {
     async listDistinctTags() { return []; },
     async move() {},
     async listByCollection() { return []; },
+    async setImportance() {},
+    async setDeadline() {},
   };
   return store;
 }

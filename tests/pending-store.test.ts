@@ -153,4 +153,35 @@ describe("pending-store", () => {
     const saved = await store.listByCollection("saved-id", "saved-id");
     expect(saved.map((r) => r.id)).toEqual(["b", "c", "a"]); // 300, 200, 100; d excluded
   });
+
+  it("setImportance sets the tier and marks unsynced", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a", importance: "normal", synced: true }));
+    await store.setImportance("a", "high");
+    const r = await store.getByCanonicalUrl("u-a");
+    expect(r?.importance).toBe("high");
+    expect(r?.synced).toBe(false);
+  });
+
+  it("setDeadline sets and clears the deadline, marking unsynced", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a", synced: true }));
+    await store.setDeadline("a", 1234);
+    expect((await store.getByCanonicalUrl("u-a"))?.deadline_at).toBe(1234);
+    await store.setDeadline("a", null);
+    const r = await store.getByCanonicalUrl("u-a");
+    expect(r?.deadline_at == null).toBe(true);
+    expect(r?.synced).toBe(false);
+  });
+
+  it("migrates a legacy matters record to high on store open", async () => {
+    // Seed a legacy record directly via put with a raw matters value, marked synced.
+    const seed = await createPendingStore();
+    await seed.put(rec({ id: "leg", canonical_url: "u-leg", importance: "matters" as never, synced: true }));
+    // Re-open: the open-time migration should rewrite matters -> high (and unsync it).
+    const reopened = await createPendingStore();
+    const r = await reopened.getByCanonicalUrl("u-leg");
+    expect(r?.importance).toBe("high");
+    expect(r?.synced).toBe(false);
+  });
 });

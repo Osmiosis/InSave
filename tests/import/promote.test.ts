@@ -19,7 +19,7 @@ function deps() {
     setState, put, enrich, drain,
     obj: {
       importedStore: { setState, bulkPut: async () => {}, getByCanonicalUrl: async () => undefined, listAll: async () => [], listByState: async () => [] },
-      pendingStore: { put, getByCanonicalUrl: async () => undefined, listUnsynced: async () => [], markSynced: async () => {}, listByStatus: async () => [], tag: async () => {}, dismiss: async () => {}, restore: async () => {}, listDistinctTags: async () => [], move: async () => {}, listByCollection: async () => [] },
+      pendingStore: { put, getByCanonicalUrl: async () => undefined, listUnsynced: async () => [], markSynced: async () => {}, listByStatus: async () => [], tag: async () => {}, dismiss: async () => {}, restore: async () => {}, listDistinctTags: async () => [], move: async () => {}, listByCollection: async () => [], setImportance: async () => {}, setDeadline: async () => {} },
       enricher: { enrich },
       drain,
       uuid: () => "new-id",

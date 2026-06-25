@@ -1,5 +1,5 @@
 import { openInsaveDB, PENDING_STORE, META_STORE, getUserId } from "./db";
-import type { CaptureStatus, PendingCapture } from "./types";
+import type { CaptureStatus, Importance, PendingCapture } from "./types";
 
 export interface PendingStore {
   put(record: PendingCapture): Promise<void>;
@@ -7,12 +7,14 @@ export interface PendingStore {
   listUnsynced(): Promise<PendingCapture[]>;
   markSynced(ids: string[]): Promise<void>;
   listByStatus(status: CaptureStatus): Promise<PendingCapture[]>;
-  tag(id: string, opts: { topic_tags: string[]; importance?: "normal" | "high" | "low" }): Promise<void>;
+  tag(id: string, opts: { topic_tags: string[]; importance?: Importance }): Promise<void>;
   dismiss(id: string): Promise<void>;
   restore(id: string): Promise<void>;
   listDistinctTags(): Promise<string[]>;
   move(id: string, collection_id: string): Promise<void>;
   listByCollection(collectionId: string, savedId: string): Promise<PendingCapture[]>;
+  setImportance(id: string, importance: Importance): Promise<void>;
+  setDeadline(id: string, deadline_at: number | null): Promise<void>;
 }
 
 export async function createPendingStore(
@@ -31,6 +33,21 @@ export async function createPendingStore(
     while (cursor) {
       const r = cursor.value as PendingCapture;
       if (!r.user_id) await cursor.update({ ...r, user_id: userId, synced: false });
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+
+  // PRD 06a: rewrite any legacy "matters" importance to "high" (device-owned;
+  // unsync so the corrected value propagates). Idempotent.
+  {
+    const tx = db.transaction(PENDING_STORE, "readwrite");
+    let cursor = await tx.store.openCursor();
+    while (cursor) {
+      const r = cursor.value as PendingCapture;
+      if ((r.importance as unknown) === "matters") {
+        await cursor.update({ ...r, importance: "high", synced: false });
+      }
       cursor = await cursor.continue();
     }
     await tx.done;
@@ -97,6 +114,12 @@ export async function createPendingStore(
     },
     async move(id, collection_id) {
       await patch(id, { collection_id });
+    },
+    async setImportance(id, importance) {
+      await patch(id, { importance });
+    },
+    async setDeadline(id, deadline_at) {
+      await patch(id, { deadline_at: deadline_at ?? undefined });
     },
     async listByCollection(collectionId, savedId) {
       const all = (await db.getAll(PENDING_STORE)) as PendingCapture[];
