@@ -1,8 +1,11 @@
 import { pullAndReconcile } from "./reminder-pull";
 import { createPendingStore } from "./pending-store";
+import type { PendingStore } from "./pending-store";
+import { drainSync } from "./sync";
 import { getUserId } from "./db";
-import type { PendingCapture } from "./types";
+import type { PendingCapture, Importance } from "./types";
 import { normalizeImportance } from "./reminder/spacing";
+import { dateInputToEpoch } from "./deadline-input";
 
 const listEl = document.getElementById("list")!;
 const emptyEl = document.getElementById("empty")!;
@@ -46,10 +49,107 @@ async function main(): Promise<void> {
     emptyEl.classList.add("show");
     return;
   }
-  for (const item of items) listEl.appendChild(renderCard(item, userId));
+  for (const item of items) listEl.appendChild(renderCard(item, userId, store));
 }
 
-function renderCard(item: PendingCapture, userId: string): HTMLElement {
+const TIERS: Importance[] = ["low", "normal", "high"];
+
+function importanceRow(item: PendingCapture, store: PendingStore): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "importance";
+
+  const label = document.createElement("span");
+  label.className = "ctl-label";
+  label.textContent = "importance";
+  wrap.appendChild(label);
+
+  let current = normalizeImportance(item.importance);
+  const btns = new Map<Importance, HTMLButtonElement>();
+
+  for (const tier of TIERS) {
+    const b = document.createElement("button");
+    b.className = "tier" + (tier === current ? " active" : "");
+    b.textContent = tier;
+    b.addEventListener("click", async () => {
+      if (tier === current) return;
+      try {
+        await store.setImportance(item.id, tier);
+        current = tier;
+        for (const [t, el] of btns) el.classList.toggle("active", t === tier);
+        void drainSync(store).catch(() => {});
+      } catch {
+        /* leave UI as-is; user can retry */
+      }
+    });
+    btns.set(tier, b);
+    wrap.appendChild(b);
+  }
+
+  return wrap;
+}
+
+function deadlineControl(item: PendingCapture, store: PendingStore): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "deadline";
+
+  const render = (deadline: number | null): void => {
+    wrap.replaceChildren();
+
+    if (deadline == null) {
+      const add = document.createElement("button");
+      add.className = "deadline-add";
+      add.textContent = "+ Set deadline";
+      add.addEventListener("click", () => {
+        const input = document.createElement("input");
+        input.type = "date";
+        input.className = "deadline-input";
+        input.addEventListener("change", async () => {
+          const epoch = dateInputToEpoch(input.value);
+          if (epoch == null) return; // empty / invalid → no-op
+          try {
+            await store.setDeadline(item.id, epoch);
+            void drainSync(store).catch(() => {});
+            render(epoch);
+          } catch {
+            /* keep the input open; user can retry */
+          }
+        });
+        wrap.replaceChildren(input);
+        input.focus();
+      });
+      wrap.appendChild(add);
+    } else {
+      const badge = document.createElement("span");
+      badge.className = "deadline-set";
+      badge.textContent = new Date(deadline).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
+
+      const clear = document.createElement("button");
+      clear.className = "deadline-clear";
+      clear.textContent = "×";
+      clear.setAttribute("aria-label", "Clear deadline");
+      clear.addEventListener("click", async () => {
+        try {
+          await store.setDeadline(item.id, null);
+          void drainSync(store).catch(() => {});
+          render(null);
+        } catch {
+          /* keep the badge; user can retry */
+        }
+      });
+
+      wrap.appendChild(badge);
+      wrap.appendChild(clear);
+    }
+  };
+
+  render(item.deadline_at ?? null);
+  return wrap;
+}
+
+function renderCard(item: PendingCapture, userId: string, store: PendingStore): HTMLElement {
   const card = document.createElement("section");
   card.className = "card";
 
@@ -82,6 +182,9 @@ function renderCard(item: PendingCapture, userId: string): HTMLElement {
   link.rel = "noopener";
   if (item.parse_ok) link.addEventListener("click", () => { void postAction(userId, item.id, "open"); });
   card.appendChild(link);
+
+  card.appendChild(importanceRow(item, store));
+  card.appendChild(deadlineControl(item, store));
 
   const controls = document.createElement("div");
   controls.className = "controls";

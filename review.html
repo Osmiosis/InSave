@@ -23,6 +23,16 @@
       .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
       button { background: #2a2a2a; color: #eee; border: 1px solid #3a3a3a; border-radius: 6px; padding: 6px 12px; font-size: 14px; }
       button.done { background: #1e3a24; border-color: #2c573a; color: #b9f5c9; }
+      .importance, .deadline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+      .ctl-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #888; }
+      button.tier { text-transform: capitalize; }
+      button.tier.active { background: #1e2a3a; border-color: #3a5573; color: #b9d5f5; }
+      button.deadline-add { color: #aaa; }
+      .deadline-set { font-size: 13px; color: #cdb; background: #25301f; border: 1px solid #3a4a2c;
+                      border-radius: 4px; padding: 2px 8px; }
+      button.deadline-clear { padding: 2px 8px; line-height: 1; }
+      input.deadline-input { background: #1a1a1a; color: #eee; border: 1px solid #3a3a3a;
+                             border-radius: 6px; padding: 5px 8px; font-size: 14px; }
     </style>
   </head>
   <body>
