@@ -11,7 +11,11 @@ export interface PromoteDeps {
   uuid: () => string;
 }
 
-export async function promote(item: ImportedItem, deps: PromoteDeps): Promise<void> {
+export async function promote(
+  item: ImportedItem,
+  deps: PromoteDeps,
+  collectionId?: string,
+): Promise<void> {
   await deps.importedStore.setState(item.id, "promoted");
 
   const enrichment = await deps.enricher.enrich(item.canonical_url);
@@ -30,6 +34,7 @@ export async function promote(item: ImportedItem, deps: PromoteDeps): Promise<vo
     media_type: item.media_type,
     ...(enrichment ?? {}),
     ...(item.caption ? { description: item.caption } : {}),
+    ...(collectionId ? { collection_id: collectionId } : {}),
   };
 
   await deps.pendingStore.put(record);

@@ -69,4 +69,16 @@ describe("promote", () => {
     await promote({ ...item(), caption: "from export" }, d.obj);
     expect(d.put.mock.calls[0][0].description).toBe("from export");
   });
+
+  it("sets collection_id when a collectionId is given", async () => {
+    const d = deps();
+    await promote(item(), d.obj, "col-recipes");
+    expect(d.put.mock.calls[0][0].collection_id).toBe("col-recipes");
+  });
+
+  it("leaves collection_id undefined when no collectionId is given (null-is-Saved)", async () => {
+    const d = deps();
+    await promote(item(), d.obj);
+    expect(d.put.mock.calls[0][0].collection_id).toBeUndefined();
+  });
 });
