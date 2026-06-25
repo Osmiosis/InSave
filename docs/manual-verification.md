@@ -144,3 +144,21 @@ Apply once against the deployed DB (existing rows untouched; `collection_id` nul
 - [ ] After migration, capture an item (no collection chosen) → in D1 its `collection_id` is NULL and it reads as "Saved".
 - [ ] Move an item to a new collection → `/api/sync` round-trips `collection_id`; D1 reflects it; reminder columns unchanged.
 - [ ] Collections list syncs via `/api/collections`; "Saved" is `is_default=1`, exactly one per user, and cannot be deleted.
+
+## PRD 05b — Collections UI
+
+No schema change (05a already added the column/table). Apply the 05a remote
+migration first if not already done.
+
+### Checklist
+- [ ] Open `/` → the collections home lists "Saved" first with a reel count; Import / Review / Enable-reminders links still work.
+- [ ] Tap **+ New collection**, name it → it appears in the list (count 0).
+- [ ] Open a collection → its reels list with author/badge/caption/link-out; "Saved" also shows reels captured with no collection (null-is-Saved).
+- [ ] On a reel, tap **Move** → pick another collection → the reel leaves this list; open the target → it's there. In D1 its `collection_id` updated; reminder columns unchanged.
+- [ ] **Rename** a non-default collection → the new name shows and persists after reload.
+- [ ] **Delete** a non-empty collection → choose **Move to Saved** → reels appear under "Saved", collection gone. Repeat with **Delete the reels too** → reels gone from all views (status=dismissed in D1), collection gone.
+- [ ] "Saved" shows no rename/delete affordance and cannot be deleted.
+- [ ] **Capture zero-tap:** share a reel from Instagram, do nothing → toast shows, auto-returns; the reel is in "Saved".
+- [ ] **Capture one-tap:** share a reel, tap a collection chip on the captured screen → toast flips to "Moved to X ✓", returns; the reel is in X (not Saved).
+- [ ] **Capture offline:** with network off, share a reel → it still saves to "Saved" (chips may not appear; that's expected).
+- [ ] After any change, with network on, confirm `/api/sync` and `/api/collections` received the updates (collection list + `collection_id`s present in D1).
