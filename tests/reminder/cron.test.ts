@@ -113,4 +113,24 @@ describe("runCron", () => {
     expect(sent).toHaveLength(1);
     expect(itemMap.get("a")!.cycle_count).toBe(1);
   });
+
+  it("holds a future-deadline item until its deadline, then surfaces it", async () => {
+    const future = NOON + 10 * DAY;
+    const before = fakeRepo(
+      [item({ id: "d", reminder_status: "active", cycle_count: 0, next_due_at: NOON - DAY, deadline_at: future })],
+      [neverQuiet()],
+    );
+    const capA = capturingNotify();
+    await runCron(before.repo, NOON, capA.notify);     // before the deadline: gated despite a past next_due_at
+    expect(capA.sent).toEqual([]);
+    expect(before.itemMap.get("d")!.cycle_count).toBe(0);
+
+    const at = fakeRepo(
+      [item({ id: "d", reminder_status: "active", cycle_count: 0, next_due_at: NOON - DAY, deadline_at: future })],
+      [neverQuiet()],
+    );
+    const capB = capturingNotify();
+    await runCron(at.repo, future, capB.notify);        // at the deadline: surfaces
+    expect(capB.sent).toEqual([{ userId: "u1", ids: ["d"] }]);
+  });
 });

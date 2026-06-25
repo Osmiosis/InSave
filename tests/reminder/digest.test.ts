@@ -58,6 +58,12 @@ describe("selectDue", () => {
     const many = Array.from({ length: DIGEST_CAP + 3 }, (_, i) => item({ id: `i${i}`, next_due_at: i }));
     expect(selectDue(many, settings(), 1_000_000)).toHaveLength(DIGEST_CAP);
   });
+
+  it("does not select an item whose future deadline gates it, even if next_due_at is past", () => {
+    const gated = item({ id: "g", importance: "normal", next_due_at: 1, deadline_at: 10_000 });
+    expect(selectDue([gated], settings(), 1000).map((i) => i.id)).toEqual([]);
+    expect(selectDue([gated], settings(), 10_000).map((i) => i.id)).toEqual(["g"]);
+  });
 });
 
 describe("isQuietHours", () => {
