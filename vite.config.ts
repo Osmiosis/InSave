@@ -7,11 +7,11 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         captured: resolve(__dirname, "captured.html"),
+        collection: resolve(__dirname, "collection.html"),
         importPage: resolve(__dirname, "import.html"),
         tag: resolve(__dirname, "tag.html"),
         review: resolve(__dirname, "review.html"),
         sw: resolve(__dirname, "src/sw.ts"),
-        // captured.html uses an inlined script (no module entry needed)
       },
       output: {
         // emit the service worker as /sw.js (no hash) so registration path is stable

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111111" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>InSave — Collection</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee; }
+      header { padding: 20px; }
+      h1 { font-size: 1.3rem; margin: 0 0 8px; }
+      header a { color: #8ab4ff; text-decoration: none; }
+      .empty { padding: 40px 20px; text-align: center; color: #888; display: none; }
+      .empty.show { display: block; }
+      .card { border-top: 1px solid #222; padding: 14px 20px; }
+      .card .meta { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+      .card .author { font-weight: 600; }
+      .badge { font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+               background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 4px; padding: 1px 6px; color: #bbb; }
+      .card a.link { color: #8ab4ff; text-decoration: none; word-break: break-all; }
+      .card .caption { color: #ccc; margin: 6px 0; }
+      .card button { background: #2a2a2a; color: #eee; border: 1px solid #3a3a3a; border-radius: 6px; padding: 6px 12px; font-size: 14px; margin-top: 8px; }
+      .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
+      .picker-sheet { background: #1b1b1b; border: 1px solid #333; border-radius: 12px 12px 0 0;
+                      width: 100%; max-width: 28rem; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+      .picker-option { background: #2a2a2a; color: #eee; border: 1px solid #3a3a3a; border-radius: 6px; padding: 10px 12px; font-size: 15px; text-align: left; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="title">Collection</h1>
+      <a href="/">← Collections</a>
+    </header>
+    <div id="empty" class="empty">Nothing here yet.</div>
+    <div id="list"></div>
+    <script type="module" src="/src/collection-view.ts"></script>
+  </body>
+</html>
