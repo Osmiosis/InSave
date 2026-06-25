@@ -8,13 +8,18 @@ import { stubEnricher } from "./enrichment";
 import { ImportError } from "./errors";
 import { createImportedStore } from "./imported-store";
 import { createPendingStore } from "../pending-store";
-import { drainSync } from "../sync";
-import type { ImportedItem } from "../types";
+import { createCollectionsStore } from "../collections-store";
+import { drainAll } from "../drain-all";
+import { pickerSheet } from "../collection-picker";
+import type { Collection, ImportedItem } from "../types";
 
 const fileInput = document.getElementById("file") as HTMLInputElement;
 const banner = document.getElementById("banner")!;
 const summary = document.getElementById("summary")!;
 const list = document.getElementById("list")!;
+
+// Loaded once per import so the "Keep to…" pickers have collections to offer.
+let collections: Collection[] = [];
 
 function showError(message: string): void {
   banner.textContent = message;
@@ -38,6 +43,8 @@ fileInput.addEventListener("change", async () => {
 
     const importedStore = await createImportedStore();
     const pendingStore = await createPendingStore();
+    const collectionsStore = await createCollectionsStore();
+    collections = await collectionsStore.list();
     const { toInsert, skippedExisting } = await reconcile(items, {
       async existingImported(u) { return Boolean(await importedStore.getByCanonicalUrl(u)); },
       async existingCapture(u) { return Boolean(await pendingStore.getByCanonicalUrl(u)); },
@@ -74,9 +81,12 @@ function renderGroup(group: AuthorGroup): HTMLElement {
   bulk.className = "bulk";
   const keepAll = document.createElement("button");
   keepAll.textContent = "Keep all";
+  const keepAllTo = document.createElement("button");
+  keepAllTo.textContent = "Keep all to…";
   const dismissAll = document.createElement("button");
   dismissAll.textContent = "Dismiss all";
   bulk.appendChild(keepAll);
+  bulk.appendChild(keepAllTo);
   bulk.appendChild(dismissAll);
   section.appendChild(bulk);
 
@@ -89,6 +99,14 @@ function renderGroup(group: AuthorGroup): HTMLElement {
   keepAll.addEventListener("click", async () => {
     for (const item of group.items) await keep(item);
     section.remove();
+  });
+  keepAllTo.addEventListener("click", () => {
+    openPicker((collectionId) => {
+      void (async () => {
+        for (const item of group.items) await keep(item, collectionId);
+        section.remove();
+      })();
+    });
   });
   dismissAll.addEventListener("click", () => {
     section.remove(); // dismissed items stay dormant in the store, just hidden
@@ -118,11 +136,24 @@ function renderItem(item: ImportedItem): HTMLElement {
     keepBtn.disabled = true;
   });
 
+  const keepToBtn = document.createElement("button");
+  keepToBtn.textContent = "Keep to…";
+  keepToBtn.addEventListener("click", () => {
+    openPicker((collectionId) => {
+      void keep(item, collectionId).then(() => {
+        li.classList.add("kept");
+        keepBtn.disabled = true;
+        keepToBtn.disabled = true;
+      });
+    });
+  });
+
   const skipBtn = document.createElement("button");
   skipBtn.textContent = "Skip";
   skipBtn.addEventListener("click", () => li.remove());
 
   li.appendChild(keepBtn);
+  li.appendChild(keepToBtn);
   li.appendChild(skipBtn);
   li.appendChild(badge);
   li.appendChild(link);
@@ -137,7 +168,18 @@ function renderItem(item: ImportedItem): HTMLElement {
   return li;
 }
 
-async function keep(item: ImportedItem): Promise<void> {
+function openPicker(onPick: (collectionId: string) => void): void {
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  const sheet = pickerSheet(collections, {
+    onPick: (id) => { overlay.remove(); onPick(id); },
+  });
+  overlay.appendChild(sheet);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+async function keep(item: ImportedItem, collectionId?: string): Promise<void> {
   const importedStore = await createImportedStore();
   // Idempotent: skip if already promoted (e.g. "Keep all" over an item the user
   // already kept individually) so we don't write duplicate pending_capture rows.
@@ -146,11 +188,16 @@ async function keep(item: ImportedItem): Promise<void> {
     if (stored?.backlog_state === "promoted") return;
   }
   const pendingStore = await createPendingStore();
-  await promoteItem(item, {
-    importedStore,
-    pendingStore,
-    enricher: stubEnricher,
-    drain: () => { drainSync(pendingStore).catch(() => {}); },
-    uuid: () => crypto.randomUUID(),
-  });
+  const collectionsStore = await createCollectionsStore();
+  await promoteItem(
+    item,
+    {
+      importedStore,
+      pendingStore,
+      enricher: stubEnricher,
+      drain: () => { drainAll(pendingStore, collectionsStore).catch(() => {}); },
+      uuid: () => crypto.randomUUID(),
+    },
+    collectionId,
+  );
 }
