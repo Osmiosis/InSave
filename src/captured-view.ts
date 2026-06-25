@@ -28,9 +28,13 @@ async function main(): Promise<void> {
     btn.textContent = c.name;
     btn.addEventListener("click", async () => {
       window.__insaveCancelReturn?.();           // we control the return now
-      await pendingStore.move(id, c.id);          // re-target the already-saved reel
-      if (toastEl) toastEl.textContent = `Moved to ${c.name} ✓`;
-      drainAll(pendingStore, collectionsStore).catch(() => {});
+      try {
+        await pendingStore.move(id, c.id);        // re-target the already-saved reel
+        if (toastEl) toastEl.textContent = `Moved to ${c.name} ✓`;
+        drainAll(pendingStore, collectionsStore).catch(() => {});
+      } catch {
+        if (toastEl) toastEl.textContent = `Couldn't move — still in Saved.`;
+      }
       window.setTimeout(() => { if (history.length > 1) history.back(); }, 800);
     });
     chipsEl.appendChild(btn);
