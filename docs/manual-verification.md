@@ -128,6 +128,11 @@ No schema changes; uses 04a/04b setup (reminder columns, VAPID, push_subscriptio
 
 ## PRD 05a — Collections (remote D1 migration)
 
+> **APPLIED 2026-06-25** to prod `insave` (`269f5f49-…`): `collection_id` column, `collections`
+> table, and `idx_collection` / `idx_collections_user` all verified present. Do NOT re-run the
+> `ALTER TABLE` (it is not idempotent and will error). Ordering rule for any fresh environment:
+> **run this migration BEFORE deploying the worker** — the sync rail reads `collection_id`.
+
 Apply once against the deployed DB (existing rows untouched; `collection_id` null ≡ "Saved"):
 
     npx wrangler d1 execute insave --remote --command \

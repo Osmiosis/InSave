@@ -550,4 +550,32 @@ all green — 137 vitest tests (117 baseline + 20 new), tsc clean, vite build OK
    remote D1 migration + checklist appended to `docs/manual-verification.md` (apply once).
 
 **Deferred to 05b:** all UI ACs (capture-chip surface, collections-as-home, cleanup view).
-**Remote migration NOT yet applied** — run the `--remote` block in manual-verification.md before deploy.
+**Remote D1 migration APPLIED 2026-06-25** (`collection_id` col + `collections` table + `idx_collection`/`idx_collections_user` on prod `insave`); verified present. Worker may now be deployed safely.
+
+---
+
+## PRD 05b — Collections UI (2026-06-25, complete)
+
+Core slice on top of 05a: subagent-driven, 8 TDD tasks + opus whole-branch review (ready-to-merge),
+151 tests green, tsc clean, build emits index/captured/collection. Four pure headless helpers
+(`drainAll`, `recentChips`, `planCollectionDelete`, `capturedRedirectUrl`); DOM verified by tsc+build.
+- **index.html = collections home** — collection cards (Saved first) with active-reel counts;
+  create / rename / delete (three-way delete: Move to Saved / Delete reels (=dismiss) / Cancel).
+- **collection.html** detail — lists a collection's reels (shared `reel-card.ts`) + Move picker.
+- **captured.html capture chips** — progressive enhancement: SW redirect carries the record id;
+  up to 5 existing-collection chips re-target the just-saved reel via `move`; inline toast + ~4s
+  auto-return keep zero-tap intact even if the module never loads.
+- **drainAll** wired into SW `activate` + every view + every mutation; SW cache v2→v3.
+Deferred to 05c: cleanup view (C), backlog picker (D).
+
+## PRD 05c — Collections finish (2026-06-25, complete) — closes PRD 05
+
+Subagent-driven, 4 TDD tasks + opus whole-branch review (ready-to-merge), 151 tests, +2 promote tests.
+- **C — cleanup view:** `tag.html`/`tag-view.ts` → `cleanup.html`/`cleanup-view.ts` (git mv + rewrite),
+  retiring the tag queue. Lists the unsorted "Saved" pile; one-tap collection chips + "More…" picker +
+  Dismiss, all with undo. SW SHELL `/tag.html`→`/cleanup.html`, cache v3→v4; Vite entry tag→cleanup;
+  home gains a "Tidy Saved" link.
+- **D — backlog picker:** `promote(item, deps, collectionId?)` (omitted ⇒ Saved); `triage-view.ts`
+  adds "Keep to…"/"Keep all to…" via the shared picker; one-tap "Keep"/"Keep all" → Saved unchanged
+  (least-tap preserved); swapped `drainSync`→`drainAll`.
+No schema change (05a covered it). With 05a+05b+05c, every PRD 05 §10 acceptance item is satisfied.
