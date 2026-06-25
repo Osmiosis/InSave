@@ -531,3 +531,23 @@ choice → drops into the system **"Saved"** collection; a specific collection i
 (existing items keep `topic_tags` hidden, all start in "Saved"); cleanup view built in 05b.
 
 **Design spec:** `docs/superpowers/specs/2026-06-25-prd05a-collections-data-sync-design.md`.
+
+**05a implemented (2026-06-25, complete):** 6 TDD tasks, 6 commits (`83c946a`→`5c8d276`),
+all green — 137 vitest tests (117 baseline + 20 new), tsc clean, vite build OK.
+1. `Collection` type + `collection_id?` on `PendingCapture`; IndexedDB v4→v5 `collections`
+   store; `collections-store.ts` (`ensureDefault` undeletable "Saved", create/rename/remove,
+   listUnsynced/markSynced).
+2. `pending-store` `move(id, collection_id)` (synced=false) + `listByCollection(colId, savedId)`
+   with **null-is-Saved** (newest-first).
+3. `/api/sync` rail carries `collection_id` as device-owned content — appended as bind `[17]`
+   (col 18) so existing indices don't shift; added to `WireRecord`/`UPSERT_SQL`/`toBind`.
+4. Pull-safety: `rowToPending` maps `collection_id`; `mergePulled` regression proves a server
+   pull can't clobber a newer local move (device-owned content kept, server reminder cols overlaid).
+5. Collections-list rail: `src/collections-sync.ts` `drainCollections` (mirrors `drainSync`:
+   post unsynced → mark only accepted → offline/!ok/throw = no-op) + worker
+   `COLLECTIONS_UPSERT_SQL`/`parseCollections` + `POST/GET /api/collections` handlers.
+6. `schema.sql`: `collection_id TEXT` col, `idx_collection`, `collections` table + index;
+   remote D1 migration + checklist appended to `docs/manual-verification.md` (apply once).
+
+**Deferred to 05b:** all UI ACs (capture-chip surface, collections-as-home, cleanup view).
+**Remote migration NOT yet applied** — run the `--remote` block in manual-verification.md before deploy.
