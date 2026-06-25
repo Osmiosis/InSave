@@ -36,12 +36,18 @@ export interface ReminderState {
   ignored_count: number;
 }
 
-export function initialState(importance: Importance | undefined, now: number): ReminderState {
+// A future deadline overrides tier spacing: the item is scheduled to the deadline
+// and stays quiet until then. Once the deadline is past, tier spacing resumes.
+export function effectiveNextDue(tierNextDue: number, deadline_at: number | undefined, now: number): number {
+  return deadline_at != null && deadline_at > now ? deadline_at : tierNextDue;
+}
+
+export function initialState(importance: unknown, now: number, deadline_at?: number): ReminderState {
   return {
     reminder_status: "active",
     cycle_count: 0,
     ignored_count: 0,
-    next_due_at: now + presetFor(importance).initialDelay,
+    next_due_at: effectiveNextDue(now + presetFor(importance).initialDelay, deadline_at, now),
   };
 }
 
@@ -60,9 +66,10 @@ export function advance(
   const loopEntry = item.tagged_at ?? item.captured_at;
   const ageHorizon = accel > 1 ? p.maxAge / 2 : p.maxAge; // ignore back-off lowers the horizon
   const expired = nextCycle > p.maxCycles || now - loopEntry > ageHorizon;
+  const deadlineActive = item.deadline_at != null && item.deadline_at > now;
   return {
-    reminder_status: expired ? "expired" : "active",
-    next_due_at: now + interval,
+    reminder_status: deadlineActive ? "active" : (expired ? "expired" : "active"),
+    next_due_at: effectiveNextDue(now + interval, item.deadline_at, now),
     cycle_count: nextCycle,
     last_surfaced_at: now,
   };
