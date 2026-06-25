@@ -5,11 +5,12 @@ export const PENDING_STORE = "pending_capture";
 export const IMPORTED_STORE = "imported_item";
 export const USER_SETTINGS_STORE = "user_settings";
 export const META_STORE = "meta";
+export const COLLECTIONS_STORE = "collections";
 
 // Single owner of the IndexedDB schema. v2 adds imported_item; v3 adds a
-// by_status index on pending_capture for the Tag Queue.
+// by_status index on pending_capture for the Tag Queue; v5 adds collections.
 export async function openInsaveDB(): Promise<IDBPDatabase> {
-  const db = await openDB(DB_NAME, 4, {
+  const db = await openDB(DB_NAME, 5, {
     upgrade(database, oldVersion, _newVersion, tx) {
       if (oldVersion < 1) {
         const os = database.createObjectStore(PENDING_STORE, { keyPath: "id" });
@@ -26,6 +27,10 @@ export async function openInsaveDB(): Promise<IDBPDatabase> {
       if (oldVersion < 4) {
         database.createObjectStore(USER_SETTINGS_STORE, { keyPath: "user_id" });
         database.createObjectStore(META_STORE, { keyPath: "key" });
+      }
+      if (oldVersion < 5) {
+        const os = database.createObjectStore(COLLECTIONS_STORE, { keyPath: "id" });
+        os.createIndex("by_user", "user_id", { unique: false });
       }
     },
   });

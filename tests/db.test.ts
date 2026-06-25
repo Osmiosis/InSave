@@ -19,11 +19,12 @@ describe("db schema", () => {
     expect([...tx.store.indexNames]).toContain("by_canonical_url");
   });
 
-  it("opens at version 4 with user_settings and meta stores", async () => {
+  it("opens at version 5 with user_settings, meta, and collections stores", async () => {
     const db = await openInsaveDB();
-    expect(db.version).toBe(4);
+    expect(db.version).toBe(5);
     expect([...db.objectStoreNames]).toContain("user_settings");
     expect([...db.objectStoreNames]).toContain("meta");
+    expect([...db.objectStoreNames]).toContain("collections");
   });
 
   it("getUserId mints once and returns the same id thereafter", async () => {

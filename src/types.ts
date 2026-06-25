@@ -28,6 +28,8 @@ export interface PendingCapture {
   topic_tags?: string[];
   importance?: Importance;
   tagged_at?: number;    // epoch ms, set on transition to "tagged"
+  // Collections (PRD 05). null/undefined ≡ the user's "Saved" collection.
+  collection_id?: string;
   // Carried from backlog import at promote time; null for share-captures.
   author?: string;
   media_type?: "reel" | "post";
@@ -85,6 +87,15 @@ export interface UserSettings {
   reminders_paused: boolean;
   last_digest_at?: number;
   synced: boolean;       // local-only
+}
+
+export interface Collection {
+  id: string;            // client-generated UUID
+  user_id: string;
+  name: string;
+  created_at: number;    // epoch ms
+  is_default: boolean;   // true ONLY for the per-user "Saved" collection
+  synced: boolean;       // local-only flag, not a wire/D1 column
 }
 
 export type { PendingStore } from "./pending-store";
