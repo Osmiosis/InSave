@@ -94,6 +94,33 @@ export function toBind(r: WireRecord): unknown[] {
   ];
 }
 
+interface CollectionWire {
+  id: string; user_id: string; name: string; created_at: number; is_default: boolean;
+}
+
+// Collections sync rail. Identity columns (id, user_id, created_at) are write-once;
+// on an id conflict only the mutable columns (name, is_default) are updated.
+export const COLLECTIONS_UPSERT_SQL = `INSERT INTO collections
+   (id, user_id, name, created_at, is_default)
+ VALUES (?, ?, ?, ?, ?)
+ ON CONFLICT(id) DO UPDATE SET
+   name = excluded.name,
+   is_default = excluded.is_default`;
+
+export function parseCollections(body: unknown): CollectionWire[] | null {
+  if (!Array.isArray(body)) return null;
+  const out: CollectionWire[] = [];
+  for (const r of body as Record<string, unknown>[]) {
+    if (
+      typeof r?.id !== "string" || typeof r?.user_id !== "string" ||
+      typeof r?.name !== "string" || typeof r?.created_at !== "number" ||
+      typeof r?.is_default !== "boolean"
+    ) return null;
+    out.push({ id: r.id, user_id: r.user_id, name: r.name, created_at: r.created_at, is_default: r.is_default });
+  }
+  return out;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -108,6 +135,12 @@ export default {
     }
     if (request.method === "POST" && url.pathname === "/api/action") {
       return handleAction(request, env);
+    }
+    if (request.method === "POST" && url.pathname === "/api/collections") {
+      return handleCollections(request, env);
+    }
+    if (request.method === "GET" && url.pathname === "/api/collections") {
+      return handleCollectionsPull(url, env);
     }
     return new Response("Not found", { status: 404 });
   },
@@ -156,6 +189,47 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
   return new Response(JSON.stringify({ accepted }), {
     status: 200,
     headers: { "content-type": "application/json" },
+  });
+}
+
+async function handleCollections(request: Request, env: Env): Promise<Response> {
+  let rows: CollectionWire[] | null;
+  try {
+    rows = parseCollections(await request.json());
+  } catch {
+    rows = null;
+  }
+  if (!rows) return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+
+  const accepted: string[] = [];
+  const stmt = env.DB.prepare(COLLECTIONS_UPSERT_SQL);
+  for (const r of rows) {
+    try {
+      await stmt.bind(r.id, r.user_id, r.name, r.created_at, r.is_default ? 1 : 0).run();
+      accepted.push(r.id);
+    } catch {
+      const existing = await env.DB.prepare(`SELECT 1 FROM collections WHERE id = ? LIMIT 1`).bind(r.id).first();
+      if (existing) accepted.push(r.id);
+    }
+  }
+  return new Response(JSON.stringify({ accepted }), {
+    status: 200, headers: { "content-type": "application/json" },
+  });
+}
+
+async function handleCollectionsPull(url: URL, env: Env): Promise<Response> {
+  const userId = parsePull(url.searchParams.get("user_id"));
+  if (!userId) return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+  const { results } = await env.DB
+    .prepare(`SELECT id, user_id, name, created_at, is_default FROM collections WHERE user_id = ?`)
+    .bind(userId)
+    .all<Record<string, unknown>>();
+  const collections = (results ?? []).map((r) => ({
+    id: String(r.id), user_id: String(r.user_id), name: String(r.name),
+    created_at: Number(r.created_at), is_default: Number(r.is_default) === 1,
+  }));
+  return new Response(JSON.stringify({ collections }), {
+    status: 200, headers: { "content-type": "application/json" },
   });
 }
 
