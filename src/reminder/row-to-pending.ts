@@ -31,6 +31,7 @@ export function rowToPending(row: Record<string, unknown>): PendingCapture {
     topic_tags,
     importance: str(row.importance) as Importance | undefined,
     tagged_at: num(row.tagged_at),
+    collection_id: str(row.collection_id),
     author: str(row.author),
     media_type: str(row.media_type) as PendingCapture["media_type"],
     user_id: str(row.user_id),

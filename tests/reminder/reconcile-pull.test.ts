@@ -31,4 +31,17 @@ describe("mergePulled", () => {
     expect(merged.ignored_count).toBe(2);
     expect(merged.last_surfaced_at).toBe(50);
   });
+
+  it("does not clobber a newer local collection_id on pull", () => {
+    const local = rec({ collection_id: "col-local", reminder_status: "active", synced: false });
+    const remote = rec({ collection_id: "col-stale-server", reminder_status: "expired", next_due_at: 99 });
+    const merged = mergePulled(local, remote);
+    expect(merged.collection_id).toBe("col-local"); // device-owned content kept
+    expect(merged.reminder_status).toBe("expired"); // server-owned overlaid
+  });
+
+  it("restore (!local) carries collection_id from remote", () => {
+    const remote = rec({ collection_id: "col-restored" });
+    expect(mergePulled(undefined, remote).collection_id).toBe("col-restored");
+  });
 });

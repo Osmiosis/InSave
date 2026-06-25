@@ -31,4 +31,14 @@ describe("rowToPending", () => {
     expect(p.reminder_status).toBeUndefined();
     expect(p.next_due_at).toBeUndefined();
   });
+
+  it("maps collection_id from the row", () => {
+    const p = rowToPending({ id: "a", canonical_url: "u", raw_payload: "{}", captured_at: 1, source: "import", status: "tagged", parse_ok: 1, collection_id: "col-x" });
+    expect(p.collection_id).toBe("col-x");
+  });
+
+  it("leaves collection_id undefined when the column is null (null-is-Saved)", () => {
+    const p = rowToPending({ id: "a", canonical_url: "u", raw_payload: "{}", captured_at: 1, source: "import", status: "tagged", parse_ok: 1, collection_id: null });
+    expect(p.collection_id).toBeUndefined();
+  });
 });
