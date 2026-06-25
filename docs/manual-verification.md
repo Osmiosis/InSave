@@ -162,3 +162,16 @@ migration first if not already done.
 - [ ] **Capture one-tap:** share a reel, tap a collection chip on the captured screen → toast flips to "Moved to X ✓", returns; the reel is in X (not Saved).
 - [ ] **Capture offline:** with network off, share a reel → it still saves to "Saved" (chips may not appear; that's expected).
 - [ ] After any change, with network on, confirm `/api/sync` and `/api/collections` received the updates (collection list + `collection_id`s present in D1).
+
+## PRD 05c — Collections finish (cleanup view + backlog picker)
+
+No schema change (05a covered it). Reinstall/refresh once so the SW serves the new shell (cache v4).
+
+### Checklist
+- [ ] Home shows a "Tidy Saved" link → opens the cleanup view listing unsorted "Saved" reels (including ones captured with no collection).
+- [ ] Tap a collection chip on a cleanup card → the reel moves into that collection (gone from cleanup, present in that collection); Undo returns it to Saved.
+- [ ] "More…" lists collections beyond the chip cap and moves correctly; "Saved" is not offered as a target.
+- [ ] Dismiss on a cleanup card removes it (status=dismissed in D1) with Undo.
+- [ ] Old `/tag.html` no longer resolves; `/cleanup.html` loads (SW cache bumped to v4).
+- [ ] Import triage: "Keep" still promotes to "Saved" in one tap; "Keep to…" / "Keep all to…" promote into the chosen collection — verify `collection_id` in D1 after sync; reminder columns untouched.
+- [ ] Promoting a backlog item with no collection choice lands it in "Saved" (no `collection_id`).
