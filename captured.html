@@ -5,23 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>InSave</title>
     <style>
-      body { margin: 0; font-family: system-ui, sans-serif; background: #111; }
+      body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee; }
       .toast {
-        position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%);
+        position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%);
         background: #222; color: #fff; padding: 14px 20px; border-radius: 10px;
         font-size: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.4); opacity: 0;
         transition: opacity .2s; max-width: 90vw; text-align: center;
       }
       .toast.show { opacity: 1; }
+      .chips { position: fixed; left: 0; right: 0; bottom: 24px; display: flex;
+               flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 16px; }
+      .chips .chip { background: #1e2a3a; color: #cfe0ff; border: 1px solid #2c3e57;
+                     border-radius: 16px; padding: 6px 14px; font-size: 15px; }
+      .chips .new-in-app { color: #8ab4ff; align-self: center; text-decoration: none; font-size: 14px; }
     </style>
   </head>
   <body>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <!-- Inlined (no imports) so this page is fully self-contained and renders
-         offline from the SW shell cache without fetching a hashed JS bundle. -->
+    <div id="chips" class="chips"></div>
+    <!-- Inline (no imports) so the confirmation renders offline from the SW shell
+         cache even if the enhancement bundle isn't cached yet. -->
     <script>
       var MESSAGES = {
-        saved: "Saved. Tag it later.",
+        saved: "Saved. Pick a collection or keep in Saved.",
         dup: "Already in InSave.",
         unparsed: "Saved — needs a look later.",
         error: "Couldn't save, try again."
@@ -29,23 +35,26 @@
       var captureStatus = new URLSearchParams(location.search).get("status") || "saved";
       var toast = document.getElementById("toast");
       toast.textContent = MESSAGES[captureStatus] || MESSAGES.saved;
-
       requestAnimationFrame(function () { toast.classList.add("show"); });
 
-      // Auto-dismiss and attempt to release the user back to where they came from.
-      var DISMISS_MS = captureStatus === "error" ? 2600 : 1500;
-      window.setTimeout(function () {
+      // Auto-dismiss and return the user to where they came from. Longer beat so
+      // there's time to glance/tap a chip; doing nothing still lands in "Saved".
+      var DISMISS_MS = captureStatus === "error" ? 2600 : 4000;
+      var t = window.setTimeout(function () {
         toast.classList.remove("show");
         window.setTimeout(function () {
-          // Best-effort return; if launched standalone there's nowhere to go back to.
           if (history.length > 1) history.back();
         }, 250);
       }, DISMISS_MS);
 
-      // Allow manual dismissal.
+      // The enhancement module calls this when the user taps a chip, so the auto
+      // return doesn't race the move.
+      window.__insaveCancelReturn = function () { window.clearTimeout(t); };
+
       toast.addEventListener("click", function () {
         if (history.length > 1) history.back();
       });
     </script>
+    <script type="module" src="/src/captured-view.ts"></script>
   </body>
 </html>
