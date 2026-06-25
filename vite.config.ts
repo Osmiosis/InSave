@@ -9,7 +9,7 @@ export default defineConfig({
         captured: resolve(__dirname, "captured.html"),
         collection: resolve(__dirname, "collection.html"),
         importPage: resolve(__dirname, "import.html"),
-        tag: resolve(__dirname, "tag.html"),
+        cleanup: resolve(__dirname, "cleanup.html"),
         review: resolve(__dirname, "review.html"),
         sw: resolve(__dirname, "src/sw.ts"),
       },

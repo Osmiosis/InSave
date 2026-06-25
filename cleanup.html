@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#111111" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>InSave — Tag your queue</title>
+    <title>InSave — Tidy your Saved pile</title>
     <style>
       body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee; }
       header { padding: 20px; }
       h1 { font-size: 1.3rem; margin: 0 0 8px; }
       p { color: #aaa; margin: 4px 0; line-height: 1.5; }
+      header a { color: #8ab4ff; text-decoration: none; }
       .empty { padding: 40px 20px; text-align: center; color: #888; display: none; }
       .empty.show { display: block; }
       .card { border-top: 1px solid #222; padding: 14px 20px; }
@@ -20,13 +21,14 @@
                background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 4px; padding: 1px 6px; color: #bbb; }
       .card a.link { color: #8ab4ff; text-decoration: none; word-break: break-all; }
       .card .caption { color: #ccc; margin: 6px 0; }
-      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
       .chip { background: #1e2a3a; color: #cfe0ff; border: 1px solid #2c3e57; border-radius: 14px; padding: 4px 12px; font-size: 14px; }
-      .chip.example { background: #1a1a1a; color: #666; border-color: #2a2a2a; }
       .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
-      .controls input { background: #1a1a1a; color: #eee; border: 1px solid #3a3a3a; border-radius: 6px; padding: 6px 10px; font-size: 14px; }
       button { background: #2a2a2a; color: #eee; border: 1px solid #3a3a3a; border-radius: 6px; padding: 6px 12px; font-size: 14px; }
-      button.matters { background: #3a2f1a; border-color: #5a4a22; color: #ffd98a; }
+      .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
+      .picker-sheet { background: #1b1b1b; border: 1px solid #333; border-radius: 12px 12px 0 0;
+                      width: 100%; max-width: 28rem; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+      .picker-option { background: #2a2a2a; color: #eee; border: 1px solid #3a3a3a; border-radius: 6px; padding: 10px 12px; font-size: 15px; text-align: left; }
       .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
                background: #222; border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px 16px;
                display: none; align-items: center; gap: 12px; }
@@ -35,14 +37,14 @@
   </head>
   <body>
     <header>
-      <h1>Tag your queue</h1>
-      <p>Give each saved reel a topic and, if it really matters, one tap to flag it.
-         Tap a chip or type a new tag — that's it.</p>
-      <p><a href="/" style="color:#8ab4ff">← Back</a></p>
+      <h1>Tidy your Saved pile</h1>
+      <p>Move unsorted reels into collections — tap a collection chip, or "More…" for the full list.
+         Totally optional; do it whenever you feel like it.</p>
+      <p><a href="/">← Collections</a></p>
     </header>
-    <div id="empty" class="empty">Nothing to tag. Capture or import some reels first.</div>
+    <div id="empty" class="empty">Saved is tidy — nothing to sort.</div>
     <div id="list"></div>
     <div id="toast" class="toast" role="status"></div>
-    <script type="module" src="/src/tag-view.ts"></script>
+    <script type="module" src="/src/cleanup-view.ts"></script>
   </body>
 </html>
