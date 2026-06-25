@@ -1,18 +1,21 @@
 /// <reference lib="webworker" />
 import { createPendingStore } from "./pending-store";
 import { handleCapture } from "./capture";
-import { drainSync } from "./sync";
 import type { SharePayload } from "./types";
+import { createCollectionsStore } from "./collections-store";
+import { drainAll } from "./drain-all";
+import { capturedRedirectUrl } from "./captured-url";
 
 declare const self: ServiceWorkerGlobalScope;
 
-const SHELL = ["/", "/index.html", "/captured.html", "/tag.html", "/review.html", "/manifest.webmanifest"];
+const SHELL = ["/", "/index.html", "/captured.html", "/collection.html", "/tag.html", "/review.html", "/manifest.webmanifest"];
 // Bump on any SW behavior change so activate() purges the previous cache.
-const CACHE = "insave-shell-v2";
+const CACHE = "insave-shell-v3";
 
 // Open the IndexedDB connection once and reuse it; avoids racing parallel
 // openDB calls across activate + overlapping share events.
 const storePromise = createPendingStore();
+const collectionsPromise = createCollectionsStore();
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -34,7 +37,8 @@ self.addEventListener("activate", (event) => {
       await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
       const store = await storePromise;
-      await drainSync(store).catch(() => {}); // opportunistic drain; never block activation
+      const collections = await collectionsPromise;
+      await drainAll(store, collections).catch(() => {}); // opportunistic drain; never block activation
     })(),
   );
 });
@@ -86,17 +90,20 @@ async function handleShare(request: Request): Promise<Response> {
   }
 
   let status: string;
+  let id: string | undefined;
   try {
     const store = await storePromise;
     const result = await handleCapture(payload, store);
     status = result.status;
-    // fire-and-forget sync; never blocks the redirect
-    drainSync(store).catch(() => {});
+    id = result.record?.id;
+    const collections = await collectionsPromise;
+    // fire-and-forget sync of both rails; never blocks the redirect
+    drainAll(store, collections).catch(() => {});
   } catch {
     status = "error";
   }
 
-  return Response.redirect(`/captured.html?status=${status}`, 303);
+  return Response.redirect(capturedRedirectUrl(status, id), 303);
 }
 
 self.addEventListener("push", (event: PushEvent) => {
