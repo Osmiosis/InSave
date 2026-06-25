@@ -11,6 +11,8 @@ export interface PendingStore {
   dismiss(id: string): Promise<void>;
   restore(id: string): Promise<void>;
   listDistinctTags(): Promise<string[]>;
+  move(id: string, collection_id: string): Promise<void>;
+  listByCollection(collectionId: string, savedId: string): Promise<PendingCapture[]>;
 }
 
 export async function createPendingStore(
@@ -92,6 +94,20 @@ export async function createPendingStore(
       const set = new Set<string>();
       for (const r of tagged) for (const t of r.topic_tags ?? []) set.add(t);
       return [...set].sort();
+    },
+    async move(id, collection_id) {
+      await patch(id, { collection_id });
+    },
+    async listByCollection(collectionId, savedId) {
+      const all = (await db.getAll(PENDING_STORE)) as PendingCapture[];
+      const includeNull = collectionId === savedId;
+      return all
+        .filter(
+          (r) =>
+            r.collection_id === collectionId ||
+            (includeNull && r.collection_id == null),
+        )
+        .sort((a, b) => b.captured_at - a.captured_at);
     },
   };
 }

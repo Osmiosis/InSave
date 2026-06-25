@@ -126,4 +126,31 @@ describe("pending-store", () => {
     await store.put(rec({ id: "b", canonical_url: "u-b", user_id: "other" }));
     expect((await store.getByCanonicalUrl("u-b"))?.user_id).toBe("other");
   });
+
+  it("move sets collection_id and marks unsynced", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a", synced: true }));
+    await store.move("a", "col-recipes");
+    const r = await store.getByCanonicalUrl("u-a");
+    expect(r?.collection_id).toBe("col-recipes");
+    expect(r?.synced).toBe(false);
+  });
+
+  it("listByCollection returns explicit members", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a", collection_id: "col-x" }));
+    await store.put(rec({ id: "b", canonical_url: "u-b", collection_id: "col-y" }));
+    const xs = await store.listByCollection("col-x", "saved-id");
+    expect(xs.map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("listByCollection treats null collection_id as Saved, newest first", async () => {
+    const store = await createPendingStore();
+    await store.put(rec({ id: "a", canonical_url: "u-a", captured_at: 100 }));               // null -> Saved
+    await store.put(rec({ id: "b", canonical_url: "u-b", captured_at: 300 }));               // null -> Saved
+    await store.put(rec({ id: "c", canonical_url: "u-c", captured_at: 200, collection_id: "saved-id" })); // explicit Saved
+    await store.put(rec({ id: "d", canonical_url: "u-d", captured_at: 400, collection_id: "col-x" }));    // elsewhere
+    const saved = await store.listByCollection("saved-id", "saved-id");
+    expect(saved.map((r) => r.id)).toEqual(["b", "c", "a"]); // 300, 200, 100; d excluded
+  });
 });

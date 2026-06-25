@@ -20,6 +20,8 @@ function fakeStore(seed: PendingCapture[] = []) {
     async dismiss() {},
     async restore() {},
     async listDistinctTags() { return []; },
+    async move() {},
+    async listByCollection() { return []; },
   };
   return store;
 }

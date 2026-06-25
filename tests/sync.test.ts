@@ -23,6 +23,8 @@ function storeWith(unsynced: PendingCapture[]): PendingStore & { marked: string[
     async dismiss() {},
     async restore() {},
     async listDistinctTags() { return []; },
+    async move() {},
+    async listByCollection() { return []; },
   };
 }
 
