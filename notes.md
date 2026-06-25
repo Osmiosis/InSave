@@ -579,3 +579,53 @@ Subagent-driven, 4 TDD tasks + opus whole-branch review (ready-to-merge), 151 te
   adds "Keep to…"/"Keep all to…" via the shared picker; one-tap "Keep"/"Keep all" → Saved unchanged
   (least-tap preserved); swapped `drainSync`→`drainAll`.
 No schema change (05a covered it). With 05a+05b+05c, every PRD 05 §10 acceptance item is satisfied.
+
+## PRD 06 — Importance tiers + user deadlines
+
+**Why (20-user round):** binary importance ("matters" vs normal) wasn't enough — users wanted a
+scale; and users wanted to set their own deadlines on items with a real due date. Literal request was
+1–10; implemented as **3 tiers** (false-precision argument: people can't distinguish a 6 from a 7, and
+only a few curves are perceptibly different). Importance `normal|matters` → **`low|normal|high`** (each
+a genuinely different spacing curve); plus an **optional `deadline_at`** override. Split like 05:
+**06a** data+engine (headless), **06b** UI.
+
+## PRD 06a — Importance tiers + deadlines: data + engine (2026-06-25, complete)
+
+Subagent-driven, 6 TDD tasks + opus whole-branch review (ready-to-merge), 174 tests, tsc clean.
+All headless / no DOM.
+- **3 tiers** `low|normal|high` (default normal); `normalizeImportance` is the single read-time
+  coercion (`matters→high`, null/unknown→normal) used by presets, ranking, cron cadence, pull.
+  3 `PRESETS` (high ≡ old "matters" curve; low wide/short-lived); 3-tier rank high→normal→low.
+- **Device-owned `deadline_at`** (epoch ms; null ≡ none). Rule: a **future** deadline suspends tier
+  spacing and keeps the item quiet **until** the deadline (`effectiveNextDue` drives `next_due_at` to
+  it), forces `active` even past tier maxCycles/maxAge; once past, the override is inert and tier
+  spacing (and snooze, which already uses the tier curve) resumes. `initialState`/`advance` take the
+  deadline; cron lazy-init passes it; `selectDue` gates on the deadline-aware next-due; `hasHigh`
+  pulls the digest forward (as `matters` did).
+- **Ownership invariant:** device writes only `importance`/`deadline_at` (`synced=false`); cron owns
+  `next_due_at` + reminder-state. `pending-store` gains `setImportance`/`setDeadline` (via `patch`),
+  + a one-time local `matters→high` migration on open. Sync rail: `WireRecord`/`UPSERT_SQL`/`toBind`
+  gain `deadline_at` (bind [18]; `collection_id` stays [17]); `row-to-pending` maps it + normalizes
+  importance; `mergePulled` preserves both across a pull.
+- **Migration:** `schema.sql` adds `deadline_at INTEGER`; **remote D1 still needs** (run BEFORE any
+  06a/06b worker deploy) `ALTER TABLE pending_capture ADD COLUMN deadline_at INTEGER;` then
+  `UPDATE pending_capture SET importance='high' WHERE importance='matters';` (documented in
+  manual-verification.md). Tuning constants ship as sane defaults (PRD §7, not settled).
+
+## PRD 06b — Importance/deadline UI (2026-06-26, complete) — closes PRD 06
+
+Subagent-driven, 2 tasks + opus whole-branch review (ready-to-merge), 178 tests, tsc clean, build ok.
+Pure UI on the review card; no data/engine/worker/schema/dependency change (06a covered all of it).
+- **Home:** the `review-view` reminder card (closes the loop — InSave surfaces an item → bump it or
+  set a deadline right there). Not re-homed to capture/collection/cleanup; the retired tag-queue's
+  binary "Matters" toggle is replaced here.
+- **Importance:** segmented buttons `low|normal|high`; current tier (`normalizeImportance`) is
+  `.active`; one tap → `setImportance` + repaint + fire-and-forget `drainSync`.
+- **Deadline:** collapsed `+ Set deadline` → native `<input type=date>` → `dateInputToEpoch`
+  (new pure helper: `YYYY-MM-DD` → **local start-of-day** epoch, null on empty/malformed/impossible)
+  → `setDeadline(epoch)` → in-place re-render to `[date] [×]` (the set-state IS the badge, single
+  source of truth, no stale `.meta`); `×` → `setDeadline(null)`. Pre-set items render in set-state.
+- **Testing matches repo convention:** only the pure helper is unit-tested headlessly (no jsdom —
+  every sibling view is untested by design); the DOM glue is gated by tsc + Vite build + the full
+  suite. `store` threaded into `renderCard`; propagation `setter (synced=false) → drainSync →
+  /api/sync → cron recomputes next_due_at`. Device never writes `next_due_at`.
