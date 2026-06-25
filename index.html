@@ -5,25 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#111111" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>InSave</title>
+    <title>InSave — Collections</title>
     <style>
-      body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee;
-             display: grid; place-items: center; min-height: 100vh; text-align: center; }
-      main { padding: 24px; max-width: 28rem; }
-      h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
-      p { color: #aaa; line-height: 1.5; }
+      body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee; }
+      header { padding: 20px 20px 8px; }
+      h1 { font-size: 1.4rem; margin: 0 0 8px; }
+      nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+      nav a { color: #8ab4ff; text-decoration: none; font-size: 14px; }
+      .actions { padding: 8px 20px 4px; }
+      button { background: #2a2a2a; color: #eee; border: 1px solid #3a3a3a; border-radius: 6px; padding: 6px 12px; font-size: 14px; }
+      .col-card { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #eee;
+                  border-top: 1px solid #222; padding: 14px 20px; }
+      .col-name { font-weight: 600; flex: 1; }
+      .col-count { color: #888; font-variant-numeric: tabular-nums; }
+      .col-card .col-rename, .col-card .col-delete { font-size: 12px; padding: 4px 8px; }
+      .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
+                 align-items: flex-end; justify-content: center; }
+      .sheet { background: #1b1b1b; border: 1px solid #333; border-radius: 12px 12px 0 0;
+               width: 100%; max-width: 28rem; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+      .sheet p { margin: 0 0 6px; color: #ccc; }
+      .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+               background: #222; border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px 16px; display: none; }
+      .toast.show { display: block; }
     </style>
   </head>
   <body>
-    <main>
+    <header>
       <h1>InSave</h1>
-      <p>Share a reel from Instagram and pick <strong>InSave</strong> to save it. Tag it later.</p>
-      <p><a href="/import.html" style="color:#8ab4ff">Import your saved-reels backlog →</a></p>
-      <p><a href="/tag.html" style="color:#8ab4ff">Tag your queue →</a></p>
-      <p><button id="enable-reminders">Enable reminders</button></p>
-      <p><a href="/review.html" style="color:#8ab4ff">Review reminders →</a></p>
-    </main>
+      <nav>
+        <a href="/import.html">Import</a>
+        <a href="/review.html">Review</a>
+        <button id="enable-reminders">Enable reminders</button>
+      </nav>
+    </header>
+    <div class="actions"><button id="new-collection">+ New collection</button></div>
+    <div id="list"></div>
+    <div id="toast" class="toast" role="status"></div>
     <script type="module" src="/src/push-enable.ts"></script>
     <script type="module" src="/src/register-sw.ts"></script>
+    <script type="module" src="/src/collections-home.ts"></script>
   </body>
 </html>
