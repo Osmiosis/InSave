@@ -182,6 +182,10 @@ No schema change (05a covered it). Reinstall/refresh once so the SW serves the n
 
 ## PRD 06a — Importance tiers + deadlines (remote D1 migration)
 
+> **APPLIED 2026-06-26** to prod `insave` (`269f5f49-…`): `deadline_at` column added and the 2
+> legacy `matters` rows remapped to `high` (verified: column present, 0 `matters` left). Do NOT
+> re-run the `ALTER` (non-idempotent). Applied BEFORE the 2196429 worker deploy.
+
 Apply once against the deployed DB (existing rows untouched; `deadline_at` null ≡ no deadline):
 
     npx wrangler d1 execute insave --remote --command \
