@@ -54,4 +54,13 @@ describe("worker sync upsert", () => {
       expect(UPSERT_SQL).not.toContain(col);
     }
   });
+
+  it("carries collection_id as a device-owned content column", () => {
+    expect(UPSERT_SQL).toContain("collection_id = excluded.collection_id");
+    expect(toBind(wire({ collection_id: "col-x" }))[17]).toBe("col-x");
+  });
+
+  it("binds null when collection_id is absent (null-is-Saved)", () => {
+    expect(toBind(wire())[17]).toBeNull();
+  });
 });
