@@ -34,8 +34,9 @@ schema changes. No new dependencies.** Everything 06b calls already exists.
   `<input type="date">`. Once set, the card shows the date as a badge with a clear `×`. Date-only —
   enough for "by Friday", keeps it rare and non-pushy per PRD §4/§7 ("the UI must not push users to
   set one").
-- **Polish: minimal.** Integrate the controls cleanly into the existing dark card layout; show the
-  deadline as a badge in `.meta` when set. No status/next-due hints, no broader restyle.
+- **Polish: minimal.** Integrate the controls cleanly into the existing dark card layout; the
+  deadline's set-state (`[date] [×]`) in the control block is the badge. No status/next-due hints, no
+  broader restyle.
 - **Date resolution: local start-of-day.** A picked date `YYYY-MM-DD` resolves to that day's
   `00:00` **local** epoch ms. So "Jul 3" drives the item due at the start of Jul 3 and it surfaces in
   Jul 3's digest (quiet-hours/digest cadence gate the actual notification time). Clearing sends
@@ -47,14 +48,17 @@ schema changes. No new dependencies.** Everything 06b calls already exists.
 Layout when a deadline is set:
 
 ```
-@author  [reel]  [⏳ Jul 3]        ← deadline badge in .meta, only when deadline_at set
+@author  [reel]
 caption…
 Open in Instagram ↗
 ── importance ──
 [ low ][ normal ][ high ]           ← segmented; current tier has .active
-+ Set deadline   /   [ 2026-07-03 ] [×]
++ Set deadline   /   [ Jul 3 ] [×]  ← single source of truth; re-renders on change
 [ Done ] [ Snooze ]
 ```
+
+The deadline's set-state (`[date] [×]`) **is** the badge — there is no separate `.meta` badge, so it
+can never go stale when the user clears the deadline (the control re-renders in place).
 
 ### 2.1 Importance row
 - Three `<button>`s, labels `low` / `normal` / `high`.
@@ -66,15 +70,13 @@ Open in Instagram ↗
 
 ### 2.2 Deadline control
 - Default (no `deadline_at`): a `+ Set deadline` link/button. Tap → reveal `<input type="date">`.
-- On a valid date pick: resolve to local start-of-day epoch (`new Date(y, m-1, d).getTime()` from the
-  input's `YYYY-MM-DD`, or `valueAsNumber` + local-offset correction — implementer's choice, must be
-  local midnight) → `store.setDeadline(item.id, epoch)` → swap to the `[date] [×]` set-state + add the
-  `.meta` badge → `drainSync(store)`.
-- `×` → `store.setDeadline(item.id, null)` → revert to `+ Set deadline`, remove the badge →
+- On a valid date pick: `dateInputToEpoch(input.value)` → local start-of-day epoch (§4) →
+  `store.setDeadline(item.id, epoch)` → re-render the control to the `[date] [×]` set-state →
   `drainSync(store)`.
-- Empty/invalid input → no-op (don't call the setter).
-- On render, if `item.deadline_at` is already set, start in the set-state (badge + `[date] [×]`),
-  not the `+ Set deadline` link.
+- `×` → `store.setDeadline(item.id, null)` → re-render to `+ Set deadline` → `drainSync(store)`.
+- Empty/invalid input (`dateInputToEpoch` returns `null`) → no-op (don't call the setter).
+- On render, if `item.deadline_at` is already set, start in the `[date] [×]` set-state, not the
+  `+ Set deadline` link.
 
 ## 3. Data flow
 
@@ -94,18 +96,28 @@ there is no reconciliation conflict (06a ownership invariant holds). `review-vie
 push device-owned writes; 06b adds the `drainSync(store)` call after each setter — `drainSync` needs
 only the pending store (`listUnsynced`/`markSynced`), so no collections plumbing.
 
-## 4. Refactor (in `src/review-view.ts`)
+## 4. Testability split (matches the repo's headless convention)
 
-`renderCard` is already ~70 lines and grows with two control blocks. Extract small local helpers in
-the same file so each unit is independently testable and `renderCard` stays readable:
+This repo has **no jsdom** and **no DOM tests** — every view (`review-view`, `reel-card`,
+`captured-view`, `collection-view`) is untested by convention; only headless logic is tested
+(`environment: "node"`, tests under `tests/`). `review-view.ts` even calls `document.getElementById`
+at module load, so it cannot be imported in a node test at all. 06b follows the same discipline: pull
+the one piece of *real* logic into a pure, headless-tested helper; leave the DOM glue untested like
+every sibling view.
 
-- `importanceRow(item, store): HTMLElement`
-- `deadlineControl(item, store): HTMLElement`
-
-Both take the **store** so they can call the setters. `renderCard(item, userId)` →
-`renderCard(item, userId, store)`: today it closes over the module-level `store` from `main()`; thread
-it as a parameter so tests can pass a fake store and production passes the real one built in `main()`.
-No change to `reel-card.ts`.
+- **`src/deadline-input.ts` (new, pure, tested):**
+  `export function dateInputToEpoch(value: string): number | null` — converts a native
+  `<input type="date">` value `"YYYY-MM-DD"` to a **local start-of-day** epoch ms
+  (`new Date(y, m-1, d).getTime()`); returns `null` for empty or malformed input. This is the only new
+  unit-tested function in 06b.
+- **Already-tested logic 06b reuses (no new tests):** `normalizeImportance` (06a — drives the active
+  tier), `setImportance`/`setDeadline` (pending-store.test.ts), `drainSync` (sync.test.ts).
+- **DOM glue (untested, per convention):** `importanceRow(item, store)` and
+  `deadlineControl(item, store)` local helpers in `review-view.ts` (keep `renderCard` readable), plus
+  the in-control set-state badge. `renderCard(item, userId)` → `renderCard(item, userId, store)` so the
+  control helpers can reach the setters (today `store` is a local in `main()`). No change to
+  `reel-card.ts`. The set-state badge label is formatted inline
+  (`new Date(epoch).toLocaleDateString(...)`) — cosmetic, untested.
 
 ## 5. Error handling
 
@@ -117,23 +129,25 @@ No change to `reel-card.ts`.
 
 | File | Change |
 |---|---|
-| `src/review-view.ts` | `importanceRow`/`deadlineControl` helpers; thread `store` into `renderCard`; `drainSync` after setters; deadline badge in `.meta` |
-| `review.html` | CSS for the segmented importance buttons (`.tier`, `.tier.active`), the deadline link/badge, and the `.meta` deadline badge |
-| `src/review-view.test.ts` (new or extended) | tests in §7 |
+| `src/deadline-input.ts` (new) | pure `dateInputToEpoch(value)` helper |
+| `tests/deadline-input.test.ts` (new) | headless tests in §7 |
+| `src/review-view.ts` | `importanceRow`/`deadlineControl` helpers; thread `store` into `renderCard`; `dateInputToEpoch` + `setDeadline`; `setImportance`; `drainSync` after setters; in-control set-state badge |
+| `review.html` | CSS for the segmented importance buttons (`.tier`, `.tier.active`) and the deadline link/set-state (`.deadline-add`, `.deadline-set`, `.deadline-clear`) |
 
 No data-layer/engine/worker/schema/dependency changes.
 
-## 7. Tests (TDD, jsdom — matches existing `*.test.ts`)
+## 7. Tests (TDD, headless — `tests/deadline-input.test.ts`, `environment: node`)
 
-1. Renders three importance buttons; the item's current tier has `.active`.
-2. Tap `high` → `setImportance(id,"high")` called; `high` becomes `.active`, others lose it.
-3. Legacy `matters` item renders with `high` active (via `normalizeImportance`).
-4. `+ Set deadline` hidden state → reveals the date input on tap.
-5. Pick a date → `setDeadline(id, <local start-of-day epoch>)`; badge + `×` shown.
-6. Item with an existing `deadline_at` renders in the set-state (not the `+ Set deadline` link).
-7. `×` → `setDeadline(id, null)`; reverts to `+ Set deadline`, badge removed.
-8. Each setter triggers a `drainSync` (spy via injected fetch / fake store).
-9. Existing high-first sort + Done/Snooze behaviour stays green.
+Only `dateInputToEpoch` is new logic; the rest is already covered or is untested DOM glue (see §4).
+
+1. `dateInputToEpoch("2026-07-03")` → `new Date(2026, 6, 3).getTime()` (local start-of-day).
+2. `dateInputToEpoch("")` → `null`.
+3. `dateInputToEpoch("not-a-date")` → `null` (malformed).
+
+**Already green, relied on (no new tests):** `normalizeImportance` (06a) drives the active tier;
+`setImportance`/`setDeadline` (pending-store.test.ts) and `drainSync` (sync.test.ts) cover the
+write+push path. DOM rendering (buttons, badge, listeners) is untested, consistent with all sibling
+views.
 
 ## 8. Acceptance (the UI-dependent ACs PRD 06a deferred)
 
