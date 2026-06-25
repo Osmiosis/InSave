@@ -27,7 +27,7 @@ describe("rowToPending", () => {
     });
     expect(p.parse_ok).toBe(false);
     expect(p.topic_tags).toBeUndefined();
-    expect(p.importance).toBeUndefined();
+    expect(p.importance).toBe("normal"); // was toBeUndefined(); null now normalizes to "normal"
     expect(p.reminder_status).toBeUndefined();
     expect(p.next_due_at).toBeUndefined();
   });
@@ -40,5 +40,15 @@ describe("rowToPending", () => {
   it("leaves collection_id undefined when the column is null (null-is-Saved)", () => {
     const p = rowToPending({ id: "a", canonical_url: "u", raw_payload: "{}", captured_at: 1, source: "import", status: "tagged", parse_ok: 1, collection_id: null });
     expect(p.collection_id).toBeUndefined();
+  });
+
+  it("maps deadline_at and normalizes a legacy matters importance to high", () => {
+    const p = rowToPending({ id: "a", canonical_url: "u", raw_payload: "{}", captured_at: 1, source: "import", status: "tagged", parse_ok: 1, importance: "matters", deadline_at: 4242 });
+    expect(p.deadline_at).toBe(4242);
+    expect(p.importance).toBe("high");
+  });
+  it("leaves deadline_at undefined when the column is null", () => {
+    const p = rowToPending({ id: "a", canonical_url: "u", raw_payload: "{}", captured_at: 1, source: "import", status: "tagged", parse_ok: 1, deadline_at: null });
+    expect(p.deadline_at).toBeUndefined();
   });
 });

@@ -63,4 +63,12 @@ describe("worker sync upsert", () => {
   it("binds null when collection_id is absent (null-is-Saved)", () => {
     expect(toBind(wire())[17]).toBeNull();
   });
+
+  it("carries deadline_at as a device-owned content column", () => {
+    expect(UPSERT_SQL).toContain("deadline_at = excluded.deadline_at");
+    expect(toBind(wire({ deadline_at: 1717 }))[18]).toBe(1717);
+  });
+  it("binds null when deadline_at is absent", () => {
+    expect(toBind(wire())[18]).toBeNull();
+  });
 });

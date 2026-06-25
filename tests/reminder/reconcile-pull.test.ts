@@ -44,4 +44,12 @@ describe("mergePulled", () => {
     const remote = rec({ collection_id: "col-restored" });
     expect(mergePulled(undefined, remote).collection_id).toBe("col-restored");
   });
+
+  it("does not clobber a newer local deadline_at on pull", () => {
+    const local = rec({ deadline_at: 8888, reminder_status: "active", synced: false });
+    const remote = rec({ deadline_at: 1111, reminder_status: "expired", next_due_at: 99 });
+    const merged = mergePulled(local, remote);
+    expect(merged.deadline_at).toBe(8888); // device-owned content kept
+    expect(merged.reminder_status).toBe("expired"); // server-owned overlaid
+  });
 });

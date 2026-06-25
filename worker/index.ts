@@ -24,6 +24,7 @@ interface WireRecord {
   media_type?: string;
   user_id?: string;
   collection_id?: string;
+  deadline_at?: number;
 }
 
 interface Env {
@@ -68,8 +69,8 @@ export function parsePull(userId: string | null): string | null {
 export const UPSERT_SQL = `INSERT INTO pending_capture
    (id, canonical_url, raw_payload, captured_at, source, status, parse_ok,
     saved_at, title, thumbnail, description, topic_tags, importance, tagged_at, author, media_type,
-    user_id, collection_id)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    user_id, collection_id, deadline_at)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
  ON CONFLICT(id) DO UPDATE SET
    status = excluded.status,
    saved_at = excluded.saved_at,
@@ -80,7 +81,8 @@ export const UPSERT_SQL = `INSERT INTO pending_capture
    author = excluded.author,
    media_type = excluded.media_type,
    user_id = excluded.user_id,
-   collection_id = excluded.collection_id`;
+   collection_id = excluded.collection_id,
+   deadline_at = excluded.deadline_at`;
 
 export function toBind(r: WireRecord): unknown[] {
   return [
@@ -91,6 +93,7 @@ export function toBind(r: WireRecord): unknown[] {
     r.importance ?? null, r.tagged_at ?? null, r.author ?? null, r.media_type ?? null,
     r.user_id ?? null,
     r.collection_id ?? null,
+    r.deadline_at ?? null,
   ];
 }
 

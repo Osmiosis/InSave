@@ -1,4 +1,5 @@
-import type { CaptureSource, CaptureStatus, Importance, PendingCapture, ReminderStatus } from "../types";
+import type { CaptureSource, CaptureStatus, PendingCapture, ReminderStatus } from "../types";
+import { normalizeImportance } from "./spacing";
 
 // Rehydrates a raw D1 pending_capture row into a PendingCapture: topic_tags JSON->array,
 // parse_ok int->bool, nullable columns -> undefined, synced (local-only) -> true.
@@ -29,9 +30,10 @@ export function rowToPending(row: Record<string, unknown>): PendingCapture {
     thumbnail: str(row.thumbnail),
     description: str(row.description),
     topic_tags,
-    importance: str(row.importance) as Importance | undefined,
+    importance: normalizeImportance(row.importance),
     tagged_at: num(row.tagged_at),
     collection_id: str(row.collection_id),
+    deadline_at: num(row.deadline_at),
     author: str(row.author),
     media_type: str(row.media_type) as PendingCapture["media_type"],
     user_id: str(row.user_id),
