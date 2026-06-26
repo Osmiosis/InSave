@@ -1,5 +1,5 @@
 import type { PendingCapture, UserSettings } from "../types";
-import { DAY, effectiveNextDue, normalizeImportance } from "./spacing";
+import { DAY, normalizeImportance } from "./spacing";
 
 export const DIGEST_CAP = 5;
 export const CADENCE_GAP: Record<UserSettings["cadence"], number> = {
@@ -7,6 +7,16 @@ export const CADENCE_GAP: Record<UserSettings["cadence"], number> = {
   balanced: 2 * DAY,
   rarely: 4 * DAY,
 };
+
+// A deadline is "due" once it has been reached but the item has not been
+// surfaced since the deadline time. Reusing last_surfaced_at makes the firing
+// exactly-once (advance writes last_surfaced_at = now on surfacing) and covers
+// a deadline that was already in the past when set.
+export function isDeadlineDue(item: PendingCapture, now: number): boolean {
+  return item.deadline_at != null
+    && item.deadline_at <= now
+    && (item.last_surfaced_at ?? 0) < item.deadline_at;
+}
 
 export function selectDue(
   items: PendingCapture[],
@@ -20,7 +30,7 @@ export function selectDue(
     .filter(
       (i) =>
         i.reminder_status === "active" &&
-        effectiveNextDue(i.next_due_at ?? Infinity, i.deadline_at, now) <= now,
+        ((i.next_due_at ?? Infinity) <= now || isDeadlineDue(i, now)),
     )
     .sort((a, b) => rank(a) - rank(b) || (a.next_due_at ?? 0) - (b.next_due_at ?? 0))
     .slice(0, DIGEST_CAP);

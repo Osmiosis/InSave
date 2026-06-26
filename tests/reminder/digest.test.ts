@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectDue, isQuietHours, cadenceGate, DIGEST_CAP, CADENCE_GAP } from "../../src/reminder/digest";
+import { selectDue, isDeadlineDue, isQuietHours, cadenceGate, DIGEST_CAP, CADENCE_GAP } from "../../src/reminder/digest";
 import type { PendingCapture, UserSettings } from "../../src/types";
 
 function item(over: Partial<PendingCapture>): PendingCapture {
@@ -59,10 +59,34 @@ describe("selectDue", () => {
     expect(selectDue(many, settings(), 1_000_000)).toHaveLength(DIGEST_CAP);
   });
 
-  it("does not select an item whose future deadline gates it, even if next_due_at is past", () => {
-    const gated = item({ id: "g", importance: "normal", next_due_at: 1, deadline_at: 10_000 });
-    expect(selectDue([gated], settings(), 1000).map((i) => i.id)).toEqual([]);
-    expect(selectDue([gated], settings(), 10_000).map((i) => i.id)).toEqual(["g"]);
+  it("selects a past-next_due item even with a future deadline (sooner is fine)", () => {
+    const s = item({ id: "s", importance: "normal", next_due_at: 1, deadline_at: 10_000 });
+    expect(selectDue([s], settings(), 1000).map((i) => i.id)).toEqual(["s"]);
+  });
+
+  it("selects a future-next_due item once its deadline is reached and unserviced", () => {
+    const d = item({ id: "d", next_due_at: 10_000, deadline_at: 500 });
+    expect(selectDue([d], settings(), 1000).map((i) => i.id)).toEqual(["d"]);
+  });
+
+  it("does not re-select a deadline item already serviced (last_surfaced_at >= deadline_at)", () => {
+    const served = item({ id: "d", next_due_at: 10_000, deadline_at: 500, last_surfaced_at: 600 });
+    expect(selectDue([served], settings(), 1000).map((i) => i.id)).toEqual([]);
+  });
+});
+
+describe("isDeadlineDue", () => {
+  it("true when the deadline is reached and unserviced", () => {
+    expect(isDeadlineDue(item({ deadline_at: 500, last_surfaced_at: 0 }), 1000)).toBe(true);
+  });
+  it("false when the deadline is still in the future", () => {
+    expect(isDeadlineDue(item({ deadline_at: 5000 }), 1000)).toBe(false);
+  });
+  it("false when already serviced (last_surfaced_at >= deadline_at)", () => {
+    expect(isDeadlineDue(item({ deadline_at: 500, last_surfaced_at: 500 }), 1000)).toBe(false);
+  });
+  it("false when there is no deadline", () => {
+    expect(isDeadlineDue(item({}), 1000)).toBe(false);
   });
 });
 
