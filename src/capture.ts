@@ -1,5 +1,5 @@
 import { parse } from "./url-normalize";
-import type { CaptureResult, PendingCapture, SharePayload } from "./types";
+import type { CaptureResult, CaptureSource, PendingCapture, SharePayload } from "./types";
 import type { PendingStore } from "./pending-store";
 
 export interface CaptureDeps {
@@ -15,6 +15,7 @@ const defaultDeps: CaptureDeps = {
 export async function handleCapture(
   payload: SharePayload,
   store: PendingStore,
+  source: CaptureSource = "share_target",
   deps: CaptureDeps = defaultDeps,
 ): Promise<CaptureResult> {
   const { canonicalUrl, parseOk } = parse(payload);
@@ -29,7 +30,7 @@ export async function handleCapture(
     canonical_url: canonicalUrl,
     raw_payload: JSON.stringify(payload),
     captured_at: deps.now(),
-    source: "share_target",
+    source,
     status: "pending",
     parse_ok: parseOk,
     synced: false,

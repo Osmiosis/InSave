@@ -33,7 +33,7 @@ async function pasteCapture(): Promise<void> {
 
   const store = await createPendingStore();
   try {
-    const result = await handleCapture(payload, store);
+    const result = await handleCapture(payload, store, "clipboard");
     const collections = await createCollectionsStore();
     drainAll(store, collections).catch(() => {}); // fire-and-forget
     location.assign(capturedRedirectUrl(result.status, result.record?.id));

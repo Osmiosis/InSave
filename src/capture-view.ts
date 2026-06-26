@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   let status = "error";
   let id: string | undefined;
   try {
-    const result = await handleCapture(payload, store);
+    const result = await handleCapture(payload, store, "shortcut");
     status = result.status;
     id = result.record?.id;
     const collections = await createCollectionsStore();

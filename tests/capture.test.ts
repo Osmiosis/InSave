@@ -36,12 +36,25 @@ describe("handleCapture", () => {
     const res = await handleCapture(
       { url: "https://www.instagram.com/reel/ABC123/?igsh=x" } as SharePayload,
       store,
+      "share_target",
       deps,
     );
     expect(res.status).toBe("saved");
     expect(store.putCalls).toHaveLength(1);
     expect(store.putCalls[0].canonical_url).toBe("https://www.instagram.com/reel/ABC123");
     expect(store.putCalls[0].parse_ok).toBe(true);
+  });
+
+  it("defaults source to share_target and honors an explicit source", async () => {
+    const store = fakeStore();
+    await handleCapture(
+      { url: "https://www.instagram.com/reel/ABC123/" } as SharePayload, store, "share_target", deps);
+    expect(store.putCalls[0].source).toBe("share_target");
+
+    const store2 = fakeStore();
+    await handleCapture(
+      { url: "https://www.instagram.com/reel/DEF456/" } as SharePayload, store2, "shortcut", deps);
+    expect(store2.putCalls[0].source).toBe("shortcut");
   });
 
   it("detects a duplicate and does not write a second record", async () => {
@@ -52,14 +65,14 @@ describe("handleCapture", () => {
     };
     const store = fakeStore([existing]);
     const res = await handleCapture(
-      { url: "https://www.instagram.com/reel/ABC123/" } as SharePayload, store, deps);
+      { url: "https://www.instagram.com/reel/ABC123/" } as SharePayload, store, "share_target", deps);
     expect(res.status).toBe("dup");
     expect(store.putCalls).toHaveLength(0);
   });
 
   it("persists an unparsed payload with parse_ok=false rather than dropping it", async () => {
     const store = fakeStore();
-    const res = await handleCapture({ text: "no link here" } as SharePayload, store, deps);
+    const res = await handleCapture({ text: "no link here" } as SharePayload, store, "share_target", deps);
     expect(res.status).toBe("unparsed");
     expect(store.putCalls).toHaveLength(1);
     expect(store.putCalls[0].parse_ok).toBe(false);
@@ -70,7 +83,7 @@ describe("handleCapture", () => {
     const store = fakeStore();
     store.put = async () => { throw new Error("idb fail"); };
     const res = await handleCapture(
-      { url: "https://www.instagram.com/reel/ABC123/" } as SharePayload, store, deps);
+      { url: "https://www.instagram.com/reel/ABC123/" } as SharePayload, store, "share_target", deps);
     expect(res.status).toBe("error");
   });
 });
