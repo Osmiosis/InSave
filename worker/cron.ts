@@ -23,7 +23,7 @@ export async function runCron(repo: ReminderRepo, now: number, notify: Notify): 
     // 1. Lazy-init freshly tagged items into the loop.
     for (const it of items) {
       if (!it.reminder_status) {
-        const seed = initialState(it.importance, now, it.deadline_at);
+        const seed = initialState(it.importance, now);
         Object.assign(it, seed);
         await repo.writeReminderState(it.id, seed);
       }

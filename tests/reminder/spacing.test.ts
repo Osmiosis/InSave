@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { initialState, advance, PRESETS, DAY, presetFor, normalizeImportance, effectiveNextDue } from "../../src/reminder/spacing";
+import { initialState, advance, PRESETS, DAY, presetFor, normalizeImportance } from "../../src/reminder/spacing";
 import type { PendingCapture } from "../../src/types";
 
 function item(over: Partial<PendingCapture> = {}): PendingCapture {
@@ -70,33 +70,19 @@ describe("normalizeImportance", () => {
   });
 });
 
-describe("effectiveNextDue", () => {
-  it("returns the deadline when it is in the future", () => {
-    expect(effectiveNextDue(500, 800, 100)).toBe(800);
+describe("spacing — deadline no longer drives next_due (sooner is fine)", () => {
+  it("initialState seeds tier next_due and takes no deadline argument", () => {
+    expect(initialState("normal", 1000).next_due_at).toBe(1000 + PRESETS.normal.initialDelay);
   });
-  it("returns the tier next-due when the deadline is absent or past", () => {
-    expect(effectiveNextDue(500, undefined, 100)).toBe(500);
-    expect(effectiveNextDue(500, 50, 100)).toBe(500); // deadline already passed
-  });
-});
-
-describe("spacing deadline override", () => {
-  it("initialState drives next_due_at to a future deadline", () => {
-    const s = initialState("normal", 1000, 5000);
-    expect(s.next_due_at).toBe(5000);
-  });
-  it("initialState ignores a past deadline (tier spacing)", () => {
-    const s = initialState("normal", 10_000, 5000);
-    expect(s.next_due_at).toBe(10_000 + PRESETS.normal.initialDelay);
-  });
-  it("advance keeps a future-deadline item active and due at the deadline, even past maxCycles", () => {
+  it("advance keeps a future-deadline item active even past maxCycles, but next_due is tier-driven (not the deadline)", () => {
     const a = advance(item({ importance: "normal", cycle_count: 99, deadline_at: 9_000 }), 1_000);
     expect(a.reminder_status).toBe("active");
-    expect(a.next_due_at).toBe(9_000);
+    expect(a.next_due_at).not.toBe(9_000);
+    expect(a.next_due_at).toBeGreaterThan(1_000);
   });
-  it("advance reverts to tier spacing once the deadline is past", () => {
-    const a = advance(item({ importance: "normal", cycle_count: 0, deadline_at: 500 }), 1_000);
-    expect(a.next_due_at).toBe(1_000 + PRESETS.normal.initialDelay);
+  it("advance lets a past-deadline item expire normally past maxCycles", () => {
+    const a = advance(item({ importance: "normal", cycle_count: 99, deadline_at: 500 }), 1_000);
+    expect(a.reminder_status).toBe("expired");
   });
 });
 
