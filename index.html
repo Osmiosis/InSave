@@ -39,11 +39,15 @@
         <button id="enable-reminders">Enable reminders</button>
       </nav>
     </header>
-    <div class="actions"><button id="new-collection">+ New collection</button></div>
+    <div class="actions">
+      <button id="new-collection">+ New collection</button>
+      <button id="paste-link">Paste a reel link</button>
+    </div>
     <div id="list"></div>
     <div id="toast" class="toast" role="status"></div>
     <script type="module" src="/src/push-enable.ts"></script>
     <script type="module" src="/src/register-sw.ts"></script>
     <script type="module" src="/src/collections-home.ts"></script>
+    <script type="module" src="/src/clipboard-capture.ts"></script>
   </body>
 </html>
