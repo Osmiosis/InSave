@@ -127,20 +127,6 @@ export function parseCollections(body: unknown): CollectionWire[] | null {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    // TEMP one-off test-push (PRD07b delivery check, 2026-06-26). Token-guarded; REMOVE after use.
-    if (request.method === "POST" && url.pathname === "/api/test-push" && url.searchParams.get("k") === "insave-oneoff-2026") {
-      const repo = makeD1ReminderRepo(env.DB);
-      const sender = makeWebPushSender({ subject: env.VAPID_SUBJECT, publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY });
-      const body = (await request.json().catch(() => ({}))) as { user_id?: string };
-      const subs = await repo.listSubscriptions(body.user_id ?? "");
-      const payload = JSON.stringify({ title: "InSave", body: "Test reminder ✓", count: 1 });
-      let ok = 0, gone = 0;
-      for (const sub of subs) {
-        const res = await sender.send(sub, payload);
-        if (res.gone) { await repo.deleteSubscription(sub.endpoint); gone++; } else if (res.ok) ok++;
-      }
-      return new Response(JSON.stringify({ subs: subs.length, ok, gone }), { headers: { "content-type": "application/json" } });
-    }
     if (request.method === "POST" && url.pathname === "/api/sync") {
       return handleSync(request, env);
     }
