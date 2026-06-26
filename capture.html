@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111111" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>InSave — Saving…</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee;
+             display: grid; place-items: center; height: 100vh; }
+      p { color: #aaa; }
+    </style>
+  </head>
+  <body>
+    <p>Saving to InSave…</p>
+    <script type="module" src="/src/register-sw.ts"></script>
+    <script type="module" src="/src/capture-view.ts"></script>
+  </body>
+</html>

@@ -11,6 +11,7 @@ export default defineConfig({
         importPage: resolve(__dirname, "import.html"),
         cleanup: resolve(__dirname, "cleanup.html"),
         review: resolve(__dirname, "review.html"),
+        capture: resolve(__dirname, "capture.html"),
         sw: resolve(__dirname, "src/sw.ts"),
       },
       output: {
