@@ -658,3 +658,24 @@ capture logic, no backend change.
 - Reuses `extractReelUrl` (URL-vs-text robustness), `handleCapture` (dedupe, Saved default,
   offline-first, identity-from-PWA-session) unchanged. **07b** (iOS detection + onboarding + Shortcut
   artifact + push re-validation/stale-sub handling) deferred — needs a real iPhone.
+
+## PRD 06c — Deadline surfacing reliability (2026-06-26, complete) — amends 06a
+
+Subagent-driven, 3 tasks + opus whole-branch review (ready-to-merge), 191 tests, tsc clean. Fixes a
+**live-test bug**: a deadline set via the 06b UI on an already-scheduled item **never surfaced** it.
+Root cause was in the 06a engine, not just gating: `effectiveNextDue` only ever *delayed* an item
+("quiet until"), never *fired* it, and a deadline already in the past (the date picker resolves a date
+to **local midnight** → "today" is usually already past) was ignored entirely.
+- **Model change (decisions: sooner-is-fine / bypass cadence / respect quiet hours / fire once):** a
+  deadline stops touching `next_due_at` and instead adds a due-clause in `selectDue` — an active item
+  is due when `next_due_at <= now` **OR** `isDeadlineDue(i, now)` =
+  `deadline_at != null && deadline_at <= now && (last_surfaced_at ?? 0) < deadline_at`.
+- **Fires exactly once** (reuses server-owned `last_surfaced_at`; no new column — `advance` writes
+  `last_surfaced_at = now ≥ deadline` so the clause flips false); **handles past deadlines** (already
+  late → fire once); **never delays** normal surfacing.
+- **`effectiveNextDue` removed**; `initialState`/`advance` compute `next_due_at` from tier spacing only
+  (`advance` keeps the future-deadline **anti-expiry** guard so a near-expiry item lives to fire at its
+  deadline). **Cron** lets a deadline-driven surfacing bypass the cadence gate
+  (`!cadenceGate(...) && !hasDeadlineDue`); **quiet hours unchanged** (a 2am deadline fires at 8am).
+- No schema/UI/worker-sync/dependency change; ownership intact (cron owns `next_due_at`/
+  `last_surfaced_at`, device owns `deadline_at`). Engine-only — deploys with the next push; no migration.
