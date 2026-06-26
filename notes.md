@@ -704,3 +704,60 @@ Subagent-driven, 4 tasks + opus whole-branch review (ready-to-merge), 198 tests,
   Shortcut, native app) stays demand-driven/deferred.
 - **Known gap (separate fix):** reminder timezone defaults to UTC for all users — see the timezone
   follow-up; not part of 07b.
+
+## Session report — 2026-06-26 (06b → 07b + live device testing)
+
+A full day: four PRDs designed, built (design-first TDD, subagent-driven, each with an opus
+whole-branch review), merged to `main`, and deployed live; plus the first real on-device testing on
+Android + iPhone, which surfaced the project's biggest structural gap.
+
+### Shipped + deployed (live at `https://insave.fgcworker.workers.dev`)
+- **06b** — importance/deadline UI on review cards (segmented low/normal/high + collapsed deadline picker).
+- **07a** — iOS capture entry points: deep-link `/capture?u=` + clipboard "Paste a reel link".
+- **06c** — deadline surfacing reliability (fixed a live bug; see findings).
+- **07b** — iOS onboarding (`/ios.html`) + platform detection + home banner + push re-validation on open;
+  `SHORTCUT_URL` wired to the user-built "Save to InSave" iCloud Shortcut.
+(Per-PRD detail in the sections above. Final suite: 198 tests, tsc clean.)
+
+### Ops / deploy
+- Each merge pushed to `main` → GitHub Actions (test + build + `wrangler deploy`) succeeded. Cloudflare
+  Worker + D1 + hourly cron.
+- Applied the **06a remote D1 migration** before its first deploy: `ALTER TABLE pending_capture ADD
+  COLUMN deadline_at INTEGER` + `UPDATE … importance='high' WHERE importance='matters'` (verified).
+- CI note (non-blocking): GitHub forces the Node-20 actions onto Node 24 (deprecation warning) — bump
+  `actions/checkout`, `setup-node`, `wrangler-action` versions eventually.
+
+### Live-test findings
+1. **Deadline engine verified in production.** A deadline set via the 06b UI surfaced at **08:00 UTC**
+   exactly as 06c intends — bypassed the cadence gate, respected quiet hours, fired once (D1 showed
+   `last_surfaced_at` advanced past the deadline and `last_digest_at` at 08:00 UTC). 06c works.
+2. **Push delivery needs a live subscription.** The 08:00 notification didn't arrive because the device
+   had **no push subscription** (reminders weren't re-enabled after an app reset; `subs=0`). After
+   re-enabling, subscriptions are live: Android (FCM) + iPhone PWA (Apple Push). 07b's on-open
+   re-validation keeps them from silently dying going forward.
+3. **Timezone mismatch (logged to memory).** Settings default `timezone="UTC"` for every user with no
+   detection or settings-sync rail; a Qatar (UTC+3) user's quiet hours `22–08` ran in UTC = 01:00–11:00
+   local. Needs a fix PRD (detect `Intl…timeZone` + persist).
+4. **iOS storage-islands / NO ACCOUNT — the big finding.** The iCloud Shortcut works mechanically
+   (captured a reel, `source="shortcut"`, synced) but its "Open URLs" opens **Safari**, which on iOS is
+   a **separate storage sandbox** from the installed PWA. The reel landed under the **Safari** user
+   (`4f29d079`), not the home-screen **app** user (`da219755`) where reminders are enabled — so it does
+   not appear in the app and gets no reminders. Root cause: **InSave has no login/account** — every
+   browser context (Android, iPhone-Safari, iPhone-PWA) mints its own `user_id`, so reels never cross
+   between them. The Shortcut captures into the "wrong" island. Interim workaround: capture from *inside*
+   the installed app via **Paste a reel link**.
+
+### Current account/data state in D1
+- **Android** `be81347e` — `share_target` captures + FCM push subscription.
+- **iPhone Safari** (Shortcut) `4f29d079` — the shortcut-captured reel (isolated).
+- **iPhone PWA** (home-screen app) `da219755` — Apple Push subscription, reminders enabled.
+
+### Open follow-ups (prioritized)
+1. **Accounts / login (TOP)** — one shared library across Safari, the installed app, and Android.
+   Unblocks multi-device and makes the iPhone Shortcut actually useful. The current blocker for the
+   whole iPhone capture story.
+2. **Reminder timezone fix** — detect device tz + a settings-sync rail; align quiet hours to local.
+3. **§8 silent token Shortcut** — per-user token POSTs under the PWA account (no Safari split, no
+   app-flash); largely subsumed by accounts.
+4. **Verify push delivery end-to-end** now that subscriptions are live (set a fresh deadline → confirm a
+   notification arrives on the phone).
