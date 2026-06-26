@@ -1,7 +1,7 @@
 import type { PendingCapture } from "../src/types";
 import { initialState, advance, normalizeImportance } from "../src/reminder/spacing";
 import { markIgnored } from "../src/reminder/response";
-import { selectDue, isQuietHours, cadenceGate } from "../src/reminder/digest";
+import { selectDue, isQuietHours, cadenceGate, isDeadlineDue } from "../src/reminder/digest";
 import { defaultSettings, type ReminderRepo } from "./reminder-repo";
 
 export type Notify = (userId: string, due: PendingCapture[]) => Promise<void>;
@@ -41,7 +41,8 @@ export async function runCron(repo: ReminderRepo, now: number, notify: Notify): 
     const due = selectDue(items, settings, now);
     if (due.length === 0) continue;
     const hasHigh = due.some((d) => normalizeImportance(d.importance) === "high");
-    if (!cadenceGate(settings, now, hasHigh)) continue;
+    const hasDeadlineDue = due.some((d) => isDeadlineDue(d, now));
+    if (!cadenceGate(settings, now, hasHigh) && !hasDeadlineDue) continue;
 
     // 4. Advance each surfaced item (idempotency guard), then notify.
     for (const it of due) {

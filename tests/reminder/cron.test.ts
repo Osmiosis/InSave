@@ -114,4 +114,65 @@ describe("runCron", () => {
     expect(itemMap.get("a")!.cycle_count).toBe(1);
   });
 
+  it("surfaces a past-next_due item immediately despite a future deadline (sooner is fine)", async () => {
+    const { repo } = fakeRepo(
+      [item({ id: "d", reminder_status: "active", cycle_count: 0, next_due_at: NOON - DAY, deadline_at: NOON + 10 * DAY })],
+      [neverQuiet()],
+    );
+    const { sent, notify } = capturingNotify();
+    await runCron(repo, NOON, notify);
+    expect(sent).toEqual([{ userId: "u1", ids: ["d"] }]); // not held until the deadline
+  });
+
+  it("surfaces a reached-deadline item and bypasses the cadence gate", async () => {
+    const recent = { ...neverQuiet(), last_digest_at: NOON - 3_600_000 }; // 1h ago; balanced gap 2d → cadence would block
+    const { repo, itemMap } = fakeRepo(
+      [item({ id: "d", reminder_status: "active", cycle_count: 0, next_due_at: NOON + 10 * DAY, deadline_at: NOON - DAY })],
+      [recent],
+    );
+    const { sent, notify } = capturingNotify();
+    await runCron(repo, NOON, notify);
+    expect(sent).toEqual([{ userId: "u1", ids: ["d"] }]);
+    expect(itemMap.get("d")!.last_surfaced_at).toBe(NOON);
+  });
+
+  it("still blocks a non-deadline due item under the cadence gate (bypass is deadline-only)", async () => {
+    const recent = { ...neverQuiet(), last_digest_at: NOON - 3_600_000 }; // 1h ago
+    const { repo } = fakeRepo(
+      [item({ id: "a", reminder_status: "active", cycle_count: 0, next_due_at: NOON - DAY })], // due, no deadline
+      [recent],
+    );
+    const { sent, notify } = capturingNotify();
+    await runCron(repo, NOON, notify);
+    expect(sent).toEqual([]); // cadence still gates a plain due item
+  });
+
+  it("surfaces a reached-deadline item exactly once across consecutive ticks", async () => {
+    const { repo } = fakeRepo(
+      [item({ id: "d", reminder_status: "active", cycle_count: 0, next_due_at: NOON + 10 * DAY, deadline_at: NOON - DAY })],
+      [neverQuiet()],
+    );
+    const { sent, notify } = capturingNotify();
+    await runCron(repo, NOON, notify);            // tick 1: surfaces (last_surfaced = NOON)
+    await runCron(repo, NOON + DAY, notify);        // tick 2: last_surfaced(NOON) >= deadline(NOON-DAY) → not re-selected
+    expect(sent).toEqual([{ userId: "u1", ids: ["d"] }]);
+  });
+
+  it("does not surface a reached-deadline item during quiet hours; surfaces once quiet ends", async () => {
+    const quiet = { ...defaultSettings("u1", "UTC"), quiet_start: 0, quiet_end: 23 }; // 12:00 quiet, 23:00 not
+    const { repo, itemMap } = fakeRepo(
+      [item({ id: "d", reminder_status: "active", cycle_count: 0, next_due_at: NOON + 10 * DAY, deadline_at: NOON - DAY })],
+      [quiet],
+    );
+    const capA = capturingNotify();
+    await runCron(repo, NOON, capA.notify);          // quiet → suppressed
+    expect(capA.sent).toEqual([]);
+    expect(itemMap.get("d")!.last_surfaced_at).toBeUndefined();
+
+    const nonQuiet = Date.UTC(2026, 0, 1, 23, 0, 0);
+    const capB = capturingNotify();
+    await runCron(repo, nonQuiet, capB.notify);      // still unserviced → surfaces
+    expect(capB.sent).toEqual([{ userId: "u1", ids: ["d"] }]);
+  });
+
 });
