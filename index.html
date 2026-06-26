@@ -27,6 +27,8 @@
       .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
                background: #222; border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px 16px; display: none; }
       .toast.show { display: block; }
+      .ios-banner { display: block; margin: 8px 20px 0; padding: 10px 14px; background: #1e2a3a;
+                    border: 1px solid #3a5573; border-radius: 8px; color: #b9d5f5; text-decoration: none; font-size: 14px; }
     </style>
   </head>
   <body>
@@ -39,6 +41,7 @@
         <button id="enable-reminders">Enable reminders</button>
       </nav>
     </header>
+    <a id="ios-banner" class="ios-banner" href="/ios.html" hidden>📱 On iPhone? Finish setup →</a>
     <div class="actions">
       <button id="new-collection">+ New collection</button>
       <button id="paste-link">Paste a reel link</button>
@@ -49,5 +52,6 @@
     <script type="module" src="/src/register-sw.ts"></script>
     <script type="module" src="/src/collections-home.ts"></script>
     <script type="module" src="/src/clipboard-capture.ts"></script>
+    <script type="module" src="/src/ios-banner.ts"></script>
   </body>
 </html>
