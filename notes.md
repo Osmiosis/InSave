@@ -629,3 +629,32 @@ Pure UI on the review card; no data/engine/worker/schema/dependency change (06a 
   every sibling view is untested by design); the DOM glue is gated by tsc + Vite build + the full
   suite. `store` threaded into `renderCard`; propagation `setter (synced=false) → drainSync →
   /api/sync → cron recomputes next_due_at`. Device never writes `next_due_at`.
+
+## PRD 07 — iPhone capture via iOS Shortcut
+
+**Why:** get InSave on iPhone for free. Blocker is structural: iOS has no Web Share Target (WebKit),
+so a PWA can't insert into Instagram's share sheet like Android. Solution: an iCloud **Shortcut** in
+the share sheet that opens the installed PWA with the reel URL; the PWA captures via the existing
+pipeline. Reminders port directly (iOS 16.4+ PWA Web Push). Split: **07a** PWA capture entry points
+(buildable without a device), **07b** iOS onboarding + the Shortcut artifact + push reliability.
+
+## PRD 07a — PWA capture entry points (2026-06-26, complete)
+
+Subagent-driven, 3 tasks + a follow-up + opus whole-branch review (ready-to-merge), 184 tests, tsc
+clean, Vite emits capture.html. Two NEW entry points into the EXISTING capture pipeline — no new
+capture logic, no backend change.
+- **Deep-link capture:** `capture.html` / `capture-view.ts` at **`GET /capture?u=<reel-url>`** (the URL
+  the 07b iOS Shortcut will open). `payloadFromQuery(search)` (the one new headless-tested pure unit;
+  precedence `u→url→text`) → `handleCapture` → `drainAll` → `captured.html` (existing toast + chips,
+  zero-tap Saved default). No URL in query → redirect home (no silent drop).
+- **Clipboard fallback:** a "Paste a reel link" button on `index.html`; gesture-gated
+  `navigator.clipboard.readText()` → reject non-reel content with a toast (no persist) → else
+  `handleCapture` → `captured.html`. Zero-setup path for users who skip the Shortcut.
+- **Source attribution:** `handleCapture` gained an optional `source: CaptureSource` param (default
+  `"share_target"` keeps Android unchanged); deep-link persists `"shortcut"`, clipboard `"clipboard"`
+  (the enum values already existed for these channels).
+- **Wiring:** SW SHELL `+/capture.html`, cache v4→v5; Vite `capture` input. Frontend-only — no
+  migration; the SW cache bump auto-applies on the next deploy.
+- Reuses `extractReelUrl` (URL-vs-text robustness), `handleCapture` (dedupe, Saved default,
+  offline-first, identity-from-PWA-session) unchanged. **07b** (iOS detection + onboarding + Shortcut
+  artifact + push re-validation/stale-sub handling) deferred — needs a real iPhone.
