@@ -679,3 +679,28 @@ to **local midnight** → "today" is usually already past) was ignored entirely.
   (`!cadenceGate(...) && !hasDeadlineDue`); **quiet hours unchanged** (a 2am deadline fires at 8am).
 - No schema/UI/worker-sync/dependency change; ownership intact (cron owns `next_due_at`/
   `last_surfaced_at`, device owns `deadline_at`). Engine-only — deploys with the next push; no migration.
+
+## PRD 07b — iOS onboarding + detection + push reliability (2026-06-26, complete) — closes PRD 07 (code)
+
+Subagent-driven, 4 tasks + opus whole-branch review (ready-to-merge), 198 tests, tsc clean. The iOS
+*front door* (07a shipped the capture entry points). Client-only — no worker/schema/dependency change.
+- **`detectPlatform(ua, isStandalone)`** (pure, tested — the one new headless unit): `ios`
+  (`iphone|ipad|ipod`), `inAppBrowser` (`FBAN|FBAV|Instagram|…`), `standalone` passthrough. Plus
+  `currentPlatform()` (live navigator/window glue).
+- **iOS onboarding `ios.html`** + `ios-onboarding.ts`: install (Add-to-Home-Screen) / reminders /
+  capture steps; in-app browser → "open in Safari"; standalone → "you're set up" confirm; a
+  one-tap **"Add the InSave shortcut"** button only when `SHORTCUT_URL` (`src/ios-config.ts`) is set —
+  the clipboard path is always shown. **iOS-only home banner** (`index.html` + `ios-banner.ts`) shown
+  only when `ios && !standalone` (default-hidden, no flash).
+- **Push reliability:** `ensureSubscription()` (`src/push-subscribe.ts`) — guard-first no-op unless
+  notifications granted; `getSubscription` → subscribe-if-null → POST `/api/subscribe`. `push-enable.ts`
+  refactored to use it; **`register-sw.ts` re-validates on every app open** (iOS silently drops
+  subscriptions). The **backend already prunes dead endpoints** (`notify.ts` on 404/410 `gone`) — no
+  worker change.
+- Wiring: SW SHELL `+/ios.html`, cache v5→v6; Vite `ios` input.
+- **Handoffs (not code):** the user builds the iCloud Shortcut on-device (Share-Sheet Shortcut →
+  Open URLs `https://insave.fgcworker.workers.dev/capture?u=[Shortcut Input]`) and sends its iCloud
+  link → set `SHORTCUT_URL` + redeploy; then on-device verification. **07 §8** (token-carrying silent
+  Shortcut, native app) stays demand-driven/deferred.
+- **Known gap (separate fix):** reminder timezone defaults to UTC for all users — see the timezone
+  follow-up; not part of 07b.
