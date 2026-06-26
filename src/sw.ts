@@ -8,9 +8,9 @@ import { capturedRedirectUrl } from "./captured-url";
 
 declare const self: ServiceWorkerGlobalScope;
 
-const SHELL = ["/", "/index.html", "/captured.html", "/collection.html", "/cleanup.html", "/review.html", "/capture.html", "/manifest.webmanifest"];
+const SHELL = ["/", "/index.html", "/captured.html", "/collection.html", "/cleanup.html", "/review.html", "/capture.html", "/ios.html", "/manifest.webmanifest"];
 // Bump on any SW behavior change so activate() purges the previous cache.
-const CACHE = "insave-shell-v5";
+const CACHE = "insave-shell-v6";
 
 // Open the IndexedDB connection once and reuse it; avoids racing parallel
 // openDB calls across activate + overlapping share events.

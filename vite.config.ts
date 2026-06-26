@@ -12,6 +12,7 @@ export default defineConfig({
         cleanup: resolve(__dirname, "cleanup.html"),
         review: resolve(__dirname, "review.html"),
         capture: resolve(__dirname, "capture.html"),
+        ios: resolve(__dirname, "ios.html"),
         sw: resolve(__dirname, "src/sw.ts"),
       },
       output: {

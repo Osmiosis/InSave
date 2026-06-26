@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111111" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>InSave — Set up on iPhone</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee; }
+      header { padding: 20px; }
+      h1 { font-size: 1.3rem; margin: 0 0 8px; }
+      p { color: #bbb; line-height: 1.5; margin: 6px 0; }
+      a { color: #8ab4ff; }
+      .step { border-top: 1px solid #222; padding: 16px 20px; }
+      .step h2 { font-size: 1rem; margin: 0 0 6px; }
+      .notice { background: #3a2a1a; border: 1px solid #5a3a1a; border-radius: 8px;
+                padding: 12px; color: #f5d9b9; display: none; }
+      .notice.show { display: block; }
+      .hidden { display: none; }
+      .confirm { display: none; padding: 16px 20px; color: #b9f5c9; }
+      .confirm.show { display: block; }
+      a.shortcut-btn { display: inline-block; background: #1e2a3a; border: 1px solid #3a5573;
+                       border-radius: 8px; padding: 10px 14px; color: #b9d5f5; text-decoration: none; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Set up InSave on iPhone</h1>
+      <p><a href="/">← Back to InSave</a></p>
+    </header>
+
+    <div id="confirm" class="confirm">You're set up — InSave is installed. Saving works from the home-screen app.</div>
+
+    <div id="steps">
+      <section class="step" id="step-install">
+        <div id="inapp-notice" class="notice">
+          You're in an in-app browser. Open this page in <strong>Safari</strong> first —
+          tap the <strong>•••</strong> menu → <strong>Open in Safari</strong> — then continue.
+        </div>
+        <div id="install-steps">
+          <h2>1. Install for reminders</h2>
+          <p>In <strong>Safari</strong>, tap the <strong>Share</strong> icon →
+            <strong>Add to Home Screen</strong> → <strong>Add</strong>. Open InSave from the new
+            home-screen icon.</p>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>2. Turn on reminders</h2>
+        <p>Open InSave from the home screen, then tap <strong>Enable reminders</strong> and allow
+          notifications.</p>
+      </section>
+
+      <section class="step">
+        <h2>3. Save reels</h2>
+        <div id="shortcut-slot"></div>
+        <p><strong>Or paste a link (no setup):</strong> in Instagram, open a reel →
+          <strong>Share</strong> → <strong>Copy link</strong>. In InSave, tap
+          <strong>Paste a reel link</strong>.</p>
+      </section>
+    </div>
+
+    <script type="module" src="/src/register-sw.ts"></script>
+    <script type="module" src="/src/ios-onboarding.ts"></script>
+  </body>
+</html>
