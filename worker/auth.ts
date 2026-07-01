@@ -22,6 +22,12 @@ export function createAuth(env: AuthEnv) {
     },
     baseURL: env.AUTH_BASE_URL,
     basePath: "/api/auth",
+    // Sticky login (PRD 08 §5.1): a long, persistent session that survives
+    // reloads/restarts, refreshed when older than a day so active users stay in.
+    session: {
+      expiresIn: 60 * 60 * 24 * 30, // 30 days
+      updateAge: 60 * 60 * 24, // refresh once older than 1 day
+    },
     socialProviders: {
       google: {
         clientId: env.GOOGLE_CLIENT_ID,
