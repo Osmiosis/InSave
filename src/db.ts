@@ -49,3 +49,10 @@ export async function getUserId(uuid: () => string = () => crypto.randomUUID()):
   await db.put(META_STORE, { key: "user_id", value });
   return value;
 }
+
+// Overwrites the device's stored user_id — used after an account merge to swap
+// the anonymous id for the signed-in account id so all rails key on the account.
+export async function setUserId(value: string): Promise<void> {
+  const db = await openInsaveDB();
+  await db.put(META_STORE, { key: "user_id", value });
+}
