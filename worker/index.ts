@@ -1,3 +1,5 @@
+import { createAuth } from "./auth";
+import { UPSERT_SQL, COLLECTIONS_UPSERT_SQL } from "./sql";
 import { runCron } from "./cron";
 import { makeD1ReminderRepo } from "./d1-reminder-repo";
 import { makeNotify } from "./notify";
@@ -32,6 +34,9 @@ interface Env {
   VAPID_SUBJECT: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
+  AUTH_BASE_URL: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
 }
 
 export function parseSubscribe(body: unknown, now: number): PushSubscriptionRecord | null {
@@ -66,24 +71,6 @@ export function parsePull(userId: string | null): string | null {
 // Upsert: insert new captures, and on an id conflict (a re-synced state transition)
 // update only the mutable columns. Identity columns (canonical_url, raw_payload,
 // captured_at, source, parse_ok) are write-once and never touched here.
-export const UPSERT_SQL = `INSERT INTO pending_capture
-   (id, canonical_url, raw_payload, captured_at, source, status, parse_ok,
-    saved_at, title, thumbnail, description, topic_tags, importance, tagged_at, author, media_type,
-    user_id, collection_id, deadline_at)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
- ON CONFLICT(id) DO UPDATE SET
-   status = excluded.status,
-   saved_at = excluded.saved_at,
-   description = excluded.description,
-   topic_tags = excluded.topic_tags,
-   importance = excluded.importance,
-   tagged_at = excluded.tagged_at,
-   author = excluded.author,
-   media_type = excluded.media_type,
-   user_id = excluded.user_id,
-   collection_id = excluded.collection_id,
-   deadline_at = excluded.deadline_at`;
-
 export function toBind(r: WireRecord): unknown[] {
   return [
     r.id, r.canonical_url, r.raw_payload, r.captured_at, r.source, r.status,
@@ -100,15 +87,6 @@ export function toBind(r: WireRecord): unknown[] {
 interface CollectionWire {
   id: string; user_id: string; name: string; created_at: number; is_default: boolean;
 }
-
-// Collections sync rail. Identity columns (id, user_id, created_at) are write-once;
-// on an id conflict only the mutable columns (name, is_default) are updated.
-export const COLLECTIONS_UPSERT_SQL = `INSERT INTO collections
-   (id, user_id, name, created_at, is_default)
- VALUES (?, ?, ?, ?, ?)
- ON CONFLICT(id) DO UPDATE SET
-   name = excluded.name,
-   is_default = excluded.is_default`;
 
 export function parseCollections(body: unknown): CollectionWire[] | null {
   if (!Array.isArray(body)) return null;
@@ -127,6 +105,10 @@ export function parseCollections(body: unknown): CollectionWire[] | null {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    // Better Auth owns everything under /api/auth/* (sign-in, callbacks, session).
+    if (url.pathname.startsWith("/api/auth/")) {
+      return createAuth(env).handler(request);
+    }
     if (request.method === "POST" && url.pathname === "/api/sync") {
       return handleSync(request, env);
     }
