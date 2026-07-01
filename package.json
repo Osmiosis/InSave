@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "^1.0.2",
+    "better-auth": "^1.6.23",
     "fflate": "^0.8.3",
     "idb": "^8.0.0"
   }
