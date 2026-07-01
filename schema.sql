@@ -59,10 +59,11 @@ CREATE TABLE IF NOT EXISTS collections (
 );
 CREATE INDEX IF NOT EXISTS idx_collections_user ON collections (user_id);
 
--- Dedupe key. Partial unique index so multiple parse_ok=false rows
--- (canonical_url = '') don't collide.
+-- Dedupe key, scoped per owner (PRD 08 §10.2): the same reel may exist under
+-- different users; a single user cannot hold it twice. Partial so multiple
+-- parse_ok=false rows (canonical_url = '') don't collide.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_canonical_url
-  ON pending_capture (canonical_url)
+  ON pending_capture (user_id, canonical_url)
   WHERE canonical_url <> '';
 
 -- ── Better Auth (PRD 08 accounts) ──────────────────────────────────────────

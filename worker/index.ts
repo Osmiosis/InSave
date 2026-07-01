@@ -181,9 +181,9 @@ export async function handleSync(
       // stays unaccepted and the client retries it instead of losing it.
       const existing = await env.DB.prepare(
         `SELECT 1 FROM pending_capture
-         WHERE id = ? OR (canonical_url <> '' AND canonical_url = ?) LIMIT 1`,
+         WHERE id = ? OR (canonical_url <> '' AND canonical_url = ? AND user_id = ?) LIMIT 1`,
       )
-        .bind(r.id, r.canonical_url)
+        .bind(r.id, r.canonical_url, r.user_id ?? null)
         .first();
       if (existing) accepted.push(r.id);
     }
