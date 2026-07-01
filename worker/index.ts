@@ -1,5 +1,6 @@
 import { createAuth } from "./auth";
 import { resolveOwner, type SessionInfo } from "./owner";
+import { planPendingMerge, buildPendingStatements, type MergeRow } from "./merge";
 import { UPSERT_SQL, COLLECTIONS_UPSERT_SQL } from "./sql";
 import { runCron } from "./cron";
 import { makeD1ReminderRepo } from "./d1-reminder-repo";
@@ -127,6 +128,9 @@ export default {
     }
     if (request.method === "POST" && url.pathname === "/api/action") {
       return handleAction(request, env);
+    }
+    if (request.method === "POST" && url.pathname === "/api/merge") {
+      return handleMerge(request, env);
     }
     if (request.method === "POST" && url.pathname === "/api/collections") {
       return handleCollections(request, env);
@@ -315,6 +319,77 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
     await repo.writeReminderState(id, applyAction(item, parsed.action, now));
   }
   return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+const MERGE_COLS =
+  "id, canonical_url, status, saved_at, description, topic_tags, importance, tagged_at, author, media_type, collection_id, deadline_at";
+
+// Absorb an anonymous device's data into the signed-in account (PRD 08 §7).
+// Re-points pending_capture/collections/subscriptions and coalesces reels that
+// collide on canonical_url; the account's server-owned reminder state is
+// untouched. Runs in one atomic D1 batch; idempotent and non-destructive.
+export async function executeMerge(
+  db: D1Database,
+  accountId: string,
+  anonId: string,
+): Promise<number> {
+  const anonRows =
+    (await db.prepare(`SELECT ${MERGE_COLS} FROM pending_capture WHERE user_id = ?`).bind(anonId).all<MergeRow>()).results ?? [];
+  const acctRows =
+    (await db.prepare(`SELECT ${MERGE_COLS} FROM pending_capture WHERE user_id = ? AND canonical_url <> ''`).bind(accountId).all<MergeRow>()).results ?? [];
+
+  const byUrl = new Map<string, MergeRow>();
+  for (const r of acctRows) byUrl.set(r.canonical_url, r);
+
+  const ops = planPendingMerge(anonRows, byUrl);
+  const stmts = buildPendingStatements(ops, accountId, anonId);
+
+  // Collections and push subscriptions follow their owner (§7.2, §7.6). Their
+  // ids/endpoints are globally unique PKs, so a plain re-point cannot collide.
+  stmts.push({ sql: `UPDATE collections SET user_id = ? WHERE user_id = ?`, params: [accountId, anonId] });
+  stmts.push({ sql: `UPDATE push_subscriptions SET user_id = ? WHERE user_id = ?`, params: [accountId, anonId] });
+
+  // Settings: the account's own row is authoritative; adopt the anon row only
+  // when the account has none (user_settings PK is user_id).
+  const hasAccountSettings = await db.prepare(`SELECT 1 FROM user_settings WHERE user_id = ? LIMIT 1`).bind(accountId).first();
+  stmts.push(
+    hasAccountSettings
+      ? { sql: `DELETE FROM user_settings WHERE user_id = ?`, params: [anonId] }
+      : { sql: `UPDATE user_settings SET user_id = ? WHERE user_id = ?`, params: [accountId, anonId] },
+  );
+
+  await db.batch(stmts.map((s) => db.prepare(s.sql).bind(...s.params)));
+  return ops.length;
+}
+
+export async function handleMerge(
+  request: Request,
+  env: Env,
+  getSession: GetSession = sessionReader(env),
+): Promise<Response> {
+  const { ownerId, authed } = await resolveOwner(getSession, request.headers, null);
+  if (!authed || !ownerId) {
+    return new Response(JSON.stringify({ error: "auth required" }), { status: 401 });
+  }
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+  }
+  const anonId = (body as { anon_id?: unknown })?.anon_id;
+  // Nothing to absorb: no anon id, or it already is the account (e.g. re-run).
+  if (typeof anonId !== "string" || !anonId || anonId === ownerId) {
+    return new Response(JSON.stringify({ ok: true, merged: 0 }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  const merged = await executeMerge(env.DB, ownerId, anonId);
+  return new Response(JSON.stringify({ ok: true, merged }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
