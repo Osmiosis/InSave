@@ -64,3 +64,54 @@ CREATE INDEX IF NOT EXISTS idx_collections_user ON collections (user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_canonical_url
   ON pending_capture (canonical_url)
   WHERE canonical_url <> '';
+
+-- ── Better Auth (PRD 08 accounts) ──────────────────────────────────────────
+-- Social login (Google/Apple). Column names come from better-auth@1.6.23
+-- getAuthTables(); SQLite types follow better-auth's own migration generator
+-- (string->TEXT, boolean->INTEGER, date->DATE, id->TEXT). Value serialization
+-- (Date encoding, boolean 0/1) is handled by better-auth's kysely adapter.
+CREATE TABLE IF NOT EXISTS user (
+  id            TEXT PRIMARY KEY NOT NULL,
+  name          TEXT NOT NULL,
+  email         TEXT NOT NULL UNIQUE,
+  emailVerified INTEGER NOT NULL,
+  image         TEXT,
+  createdAt     DATE NOT NULL,
+  updatedAt     DATE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS session (
+  id        TEXT PRIMARY KEY NOT NULL,
+  expiresAt DATE NOT NULL,
+  token     TEXT NOT NULL UNIQUE,
+  createdAt DATE NOT NULL,
+  updatedAt DATE NOT NULL,
+  ipAddress TEXT,
+  userAgent TEXT,
+  userId    TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS account (
+  id                    TEXT PRIMARY KEY NOT NULL,
+  accountId             TEXT NOT NULL,
+  providerId            TEXT NOT NULL,
+  userId                TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  accessToken           TEXT,
+  refreshToken          TEXT,
+  idToken               TEXT,
+  accessTokenExpiresAt  DATE,
+  refreshTokenExpiresAt DATE,
+  scope                 TEXT,
+  password              TEXT,
+  createdAt             DATE NOT NULL,
+  updatedAt             DATE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS verification (
+  id         TEXT PRIMARY KEY NOT NULL,
+  identifier TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  expiresAt  DATE NOT NULL,
+  createdAt  DATE NOT NULL,
+  updatedAt  DATE NOT NULL
+);
