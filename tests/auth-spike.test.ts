@@ -19,7 +19,7 @@ describe("better-auth wiring (spike)", () => {
       new Request("http://localhost:8787/api/auth/get-session"),
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { session?: unknown } | null;
     expect(body?.session ?? null).toBeNull();
   });
 });
