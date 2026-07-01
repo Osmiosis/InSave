@@ -1,4 +1,5 @@
 import { createAuth } from "./auth";
+import { resolveOwner, type SessionInfo } from "./owner";
 import { UPSERT_SQL, COLLECTIONS_UPSERT_SQL } from "./sql";
 import { runCron } from "./cron";
 import { makeD1ReminderRepo } from "./d1-reminder-repo";
@@ -38,6 +39,12 @@ interface Env {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
 }
+
+// Reads the current Better Auth session from request headers. Injectable into
+// handlers so the trust rule can be tested without a live auth backend.
+type GetSession = (headers: Headers) => Promise<SessionInfo | null>;
+const sessionReader = (env: Env): GetSession => (headers) =>
+  createAuth(env).api.getSession({ headers });
 
 export function parseSubscribe(body: unknown, now: number): PushSubscriptionRecord | null {
   const b = body as { user_id?: unknown; subscription?: { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } } | null;
@@ -116,7 +123,7 @@ export default {
       return handleSubscribe(request, env);
     }
     if (request.method === "GET" && url.pathname === "/api/pull") {
-      return handlePull(url, env);
+      return handlePull(request, url, env);
     }
     if (request.method === "POST" && url.pathname === "/api/action") {
       return handleAction(request, env);
@@ -125,7 +132,7 @@ export default {
       return handleCollections(request, env);
     }
     if (request.method === "GET" && url.pathname === "/api/collections") {
-      return handleCollectionsPull(url, env);
+      return handleCollectionsPull(request, url, env);
     }
     return new Response("Not found", { status: 404 });
   },
@@ -141,13 +148,24 @@ export default {
   },
 };
 
-async function handleSync(request: Request, env: Env): Promise<Response> {
+export async function handleSync(
+  request: Request,
+  env: Env,
+  getSession: GetSession = sessionReader(env),
+): Promise<Response> {
   let records: WireRecord[];
   try {
     records = (await request.json()) as WireRecord[];
     if (!Array.isArray(records)) throw new Error("expected array");
   } catch {
     return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+  }
+
+  // Trust rule: when signed in, every record is owned by the account, ignoring
+  // any client-supplied user_id. Anonymous records keep their own user_id.
+  const { ownerId, authed } = await resolveOwner(getSession, request.headers, null);
+  if (authed && ownerId) {
+    for (const r of records) r.user_id = ownerId;
   }
 
   const accepted: string[] = [];
@@ -177,7 +195,11 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
   });
 }
 
-async function handleCollections(request: Request, env: Env): Promise<Response> {
+async function handleCollections(
+  request: Request,
+  env: Env,
+  getSession: GetSession = sessionReader(env),
+): Promise<Response> {
   let rows: CollectionWire[] | null;
   try {
     rows = parseCollections(await request.json());
@@ -185,6 +207,12 @@ async function handleCollections(request: Request, env: Env): Promise<Response> 
     rows = null;
   }
   if (!rows) return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+
+  // Trust rule: signed-in collections are owned by the account.
+  const { ownerId, authed } = await resolveOwner(getSession, request.headers, null);
+  if (authed && ownerId) {
+    for (const r of rows) r.user_id = ownerId;
+  }
 
   const accepted: string[] = [];
   const stmt = env.DB.prepare(COLLECTIONS_UPSERT_SQL);
@@ -202,12 +230,18 @@ async function handleCollections(request: Request, env: Env): Promise<Response> 
   });
 }
 
-async function handleCollectionsPull(url: URL, env: Env): Promise<Response> {
-  const userId = parsePull(url.searchParams.get("user_id"));
-  if (!userId) return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
+async function handleCollectionsPull(
+  request: Request,
+  url: URL,
+  env: Env,
+  getSession: GetSession = sessionReader(env),
+): Promise<Response> {
+  const claimed = parsePull(url.searchParams.get("user_id"));
+  const { ownerId } = await resolveOwner(getSession, request.headers, claimed);
+  if (!ownerId) return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
   const { results } = await env.DB
     .prepare(`SELECT id, user_id, name, created_at, is_default FROM collections WHERE user_id = ?`)
-    .bind(userId)
+    .bind(ownerId)
     .all<Record<string, unknown>>();
   const collections = (results ?? []).map((r) => ({
     id: String(r.id), user_id: String(r.user_id), name: String(r.name),
@@ -218,7 +252,11 @@ async function handleCollectionsPull(url: URL, env: Env): Promise<Response> {
   });
 }
 
-async function handleSubscribe(request: Request, env: Env): Promise<Response> {
+async function handleSubscribe(
+  request: Request,
+  env: Env,
+  getSession: GetSession = sessionReader(env),
+): Promise<Response> {
   let body: unknown;
   try {
     body = await request.json();
@@ -229,6 +267,10 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
   if (!record) {
     return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
   }
+  // Trust rule: a signed-in device's subscription is owned by the account so
+  // reminders target the right identity.
+  const { ownerId, authed } = await resolveOwner(getSession, request.headers, record.user_id);
+  if (authed && ownerId) record.user_id = ownerId;
   await makeD1ReminderRepo(env.DB).putSubscription(record);
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
@@ -236,12 +278,18 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
   });
 }
 
-async function handlePull(url: URL, env: Env): Promise<Response> {
-  const userId = parsePull(url.searchParams.get("user_id"));
-  if (!userId) {
+export async function handlePull(
+  request: Request,
+  url: URL,
+  env: Env,
+  getSession: GetSession = sessionReader(env),
+): Promise<Response> {
+  const claimed = parsePull(url.searchParams.get("user_id"));
+  const { ownerId } = await resolveOwner(getSession, request.headers, claimed);
+  if (!ownerId) {
     return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
   }
-  const items = await makeD1ReminderRepo(env.DB).listByUser(userId);
+  const items = await makeD1ReminderRepo(env.DB).listByUser(ownerId);
   return new Response(JSON.stringify({ items }), {
     status: 200,
     headers: { "content-type": "application/json" },
