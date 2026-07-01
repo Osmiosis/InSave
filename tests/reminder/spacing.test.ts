@@ -52,6 +52,19 @@ describe("spacing.advance", () => {
   it("records last_surfaced_at = now", () => {
     expect(advance(item(), 5555).last_surfaced_at).toBe(5555);
   });
+
+  it("ignores ignored_count when computing the interval (no ignore penalty)", () => {
+    const patient = advance(item({ importance: "high", cycle_count: 2, ignored_count: 0 }), 0).next_due_at;
+    const ignored = advance(item({ importance: "high", cycle_count: 2, ignored_count: 5 }), 0).next_due_at;
+    expect(ignored).toBe(patient);
+  });
+
+  it("does not shorten the maxAge horizon for ignored items", () => {
+    // Below maxAge, well within maxCycles: must stay active regardless of ignores.
+    const belowHorizon = PRESETS.high.maxAge - DAY;
+    const a = advance(item({ importance: "high", cycle_count: 1, ignored_count: 5, tagged_at: 0 }), belowHorizon);
+    expect(a.reminder_status).toBe("active");
+  });
 });
 
 describe("normalizeImportance", () => {

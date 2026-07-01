@@ -22,9 +22,6 @@ export const PRESETS: Record<Importance, Preset> = {
   low:    { initialDelay: 7 * DAY, growth: 2.5, maxCycles: 2, maxAge: 21 * DAY },
 };
 
-export const IGNORE_THRESHOLD = 2;
-export const IGNORE_ACCEL = 1.5;
-
 export function presetFor(importance: unknown): Preset {
   return PRESETS[normalizeImportance(importance)];
 }
@@ -45,21 +42,21 @@ export function initialState(importance: unknown, now: number): ReminderState {
   };
 }
 
-// The "surfaced, not yet acted upon" scheduling transition. Reads ignored_count to
-// decide whether back-off acceleration applies; does NOT itself change ignored_count
-// (that is markIgnored's job — see response.ts — composed by the cron).
+// The "surfaced, not yet acted upon" scheduling transition. Interval and lifespan
+// depend only on the importance preset and cycle — ignoring a reminder no longer
+// stretches the gap or shortens the horizon (dropped per the 2026-07 tuning). The
+// ignored_count signal is still tracked (see markIgnored in response.ts) but no
+// longer feeds scheduling.
 export function advance(
   item: PendingCapture,
   now: number,
 ): { reminder_status: ReminderStatus; next_due_at: number; cycle_count: number; last_surfaced_at: number } {
   const p = presetFor(item.importance);
   const cycle = item.cycle_count ?? 0;
-  const accel = (item.ignored_count ?? 0) >= IGNORE_THRESHOLD ? IGNORE_ACCEL : 1;
-  const interval = p.initialDelay * Math.pow(p.growth * accel, cycle);
+  const interval = p.initialDelay * Math.pow(p.growth, cycle);
   const nextCycle = cycle + 1;
   const loopEntry = item.tagged_at ?? item.captured_at;
-  const ageHorizon = accel > 1 ? p.maxAge / 2 : p.maxAge; // ignore back-off lowers the horizon
-  const expired = nextCycle > p.maxCycles || now - loopEntry > ageHorizon;
+  const expired = nextCycle > p.maxCycles || now - loopEntry > p.maxAge;
   const deadlineActive = item.deadline_at != null && item.deadline_at > now;
   return {
     reminder_status: deadlineActive ? "active" : (expired ? "expired" : "active"),
