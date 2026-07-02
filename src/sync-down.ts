@@ -6,14 +6,16 @@ import { pullCollections } from "./collections-sync";
 import { pullAndReconcile } from "./reminder-pull";
 import type { Collection } from "./types";
 
+type MirrorStore = { reconcilePulled(serverCols: Array<Omit<Collection, "synced">>): Promise<void> };
+
 export interface SyncDownDeps {
   getSession: () => Promise<unknown | null>;
-  pullCollections: (store: { upsertPulled(c: Omit<Collection, "synced">): Promise<void> }) => Promise<void>;
+  pullCollections: (store: MirrorStore) => Promise<void>;
   pullReels: () => Promise<void>;
 }
 
 export async function syncDownIfSignedIn(
-  store: { upsertPulled(c: Omit<Collection, "synced">): Promise<void> },
+  store: MirrorStore,
   deps: SyncDownDeps = { getSession, pullCollections, pullReels: pullAndReconcile },
 ): Promise<boolean> {
   const session = await deps.getSession();

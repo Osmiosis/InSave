@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { syncDownIfSignedIn, type SyncDownDeps } from "../src/sync-down";
 
-const store = { upsertPulled: async () => {} };
+const store = { reconcilePulled: async () => {} };
 
 function deps(over: Partial<SyncDownDeps>): SyncDownDeps {
   return {

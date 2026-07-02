@@ -7,13 +7,15 @@ interface SyncableCollections {
 }
 
 interface PullableCollections {
-  upsertPulled(c: Omit<Collection, "synced">): Promise<void>;
+  reconcilePulled(serverCols: Array<Omit<Collection, "synced">>): Promise<void>;
 }
 
-// Pull the owner's collections from D1 into the local store. Needed after an
-// account merge so a signed-in device sees collections created on other
-// devices (collections were previously push-only). When signed in the server
-// keys on the session, so the query param is ignored.
+// Pull the owner's collections from D1 and mirror them into the local store
+// (upsert present, delete synced-but-removed). Needed after an account merge so
+// a signed-in device sees collections from other devices AND drops locals the
+// server dropped (e.g. a collapsed duplicate default). When signed in the server
+// keys on the session, so the query param is ignored. A failed fetch is a no-op
+// (never mirror an empty set on error — that would wrongly delete everything).
 export async function pullCollections(
   store: PullableCollections,
   fetchFn: typeof fetch = fetch,
@@ -32,7 +34,7 @@ export async function pullCollections(
   } catch {
     return;
   }
-  for (const c of collections) await store.upsertPulled(c);
+  await store.reconcilePulled(collections);
 }
 
 // Drop the local-only `synced` flag before sending.
