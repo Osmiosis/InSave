@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import "fake-indexeddb/auto";
 import { indexedDB } from "fake-indexeddb";
-import { openInsaveDB, PENDING_STORE, COLLECTIONS_STORE, reownLocalData, setUserId } from "../src/db";
+import { openInsaveDB, PENDING_STORE, COLLECTIONS_STORE, reownLocalData, setUserId, clearLocalData } from "../src/db";
 import { pullCollections } from "../src/collections-sync";
 import { createCollectionsStore } from "../src/collections-store";
 
@@ -27,6 +27,23 @@ describe("reownLocalData", () => {
     expect(((await db.get(PENDING_STORE, "p1")) as { user_id: string }).user_id).toBe("acct1");
     expect(((await db.get(PENDING_STORE, "p2")) as { user_id: string }).user_id).toBe("someoneElse");
     expect(((await db.get(COLLECTIONS_STORE, "c1")) as { user_id: string }).user_id).toBe("acct1");
+  });
+});
+
+describe("clearLocalData", () => {
+  beforeEach(resetDb);
+
+  it("wipes reels, collections and the stored user_id", async () => {
+    const db = await openInsaveDB();
+    await db.put(PENDING_STORE, { id: "p", user_id: "u", canonical_url: "x" });
+    await db.put(COLLECTIONS_STORE, { id: "c", user_id: "u", name: "AI", created_at: 1, is_default: false });
+    await db.put("meta", { key: "user_id", value: "u" });
+
+    await clearLocalData();
+
+    expect(await db.count(PENDING_STORE)).toBe(0);
+    expect(await db.count(COLLECTIONS_STORE)).toBe(0);
+    expect(await db.get("meta", "user_id")).toBeUndefined();
   });
 });
 

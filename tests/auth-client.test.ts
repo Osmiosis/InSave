@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { getSession, signInGoogle, signOut } from "../src/auth-client";
+import { getSession, signInGoogle, signOut, deleteAccount } from "../src/auth-client";
 
 function stubFetch(impl: (url: string, init?: RequestInit) => Promise<Response>) {
   const fn = vi.fn(impl);
@@ -52,5 +52,19 @@ describe("auth-client", () => {
     // Better Auth POST routes need a JSON content-type AND a parseable body.
     expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
     expect(() => JSON.parse(String(init?.body))).not.toThrow();
+  });
+
+  it("deleteAccount posts to the delete endpoint and returns ok", async () => {
+    const fetchFn = stubFetch(() => json({ ok: true }));
+    const ok = await deleteAccount();
+    expect(ok).toBe(true);
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe("/api/account/delete");
+    expect(init?.method).toBe("POST");
+  });
+
+  it("deleteAccount returns false on a non-OK response", async () => {
+    stubFetch(() => json({}, false));
+    expect(await deleteAccount()).toBe(false);
   });
 });

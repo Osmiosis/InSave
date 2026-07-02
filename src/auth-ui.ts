@@ -1,7 +1,8 @@
 // Account affordance for the home header. Thin DOM wiring over auth-client
 // (testable logic lives there). Signed out: a "Sign in" button. Signed in:
 // the account name + "Sign out". The anonymous capture flow is untouched.
-import { getSession, signInGoogle, signOut } from "./auth-client";
+import { getSession, signInGoogle, signOut, deleteAccount } from "./auth-client";
+import { clearLocalData } from "./db";
 
 export async function renderAccount(el: HTMLElement): Promise<void> {
   const session = await getSession();
@@ -16,8 +17,18 @@ export async function renderAccount(el: HTMLElement): Promise<void> {
       await signOut();
       window.location.reload();
     });
+    const del = document.createElement("button");
+    del.textContent = "Delete account";
+    del.addEventListener("click", async () => {
+      if (!confirm("Delete your account and all saved reels? This can't be undone.")) return;
+      if (await deleteAccount()) {
+        await clearLocalData();
+        window.location.reload();
+      }
+    });
     el.appendChild(who);
     el.appendChild(out);
+    el.appendChild(del);
   } else {
     const signIn = document.createElement("button");
     signIn.textContent = "Sign in";

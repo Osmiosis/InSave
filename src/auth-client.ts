@@ -52,3 +52,19 @@ export async function signOut(): Promise<void> {
     body: "{}",
   });
 }
+
+// Delete the account and all its server-side data (our endpoint, not Better
+// Auth's). Returns true on success so the caller can clear local data too.
+export async function deleteAccount(): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/account/delete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: "{}",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

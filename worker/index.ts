@@ -1,6 +1,7 @@
 import { createAuth } from "./auth";
 import { resolveOwner, type SessionInfo } from "./owner";
 import { planPendingMerge, buildPendingStatements, buildCollectionMerge, type MergeRow } from "./merge";
+import { buildAccountDeleteStatements } from "./account";
 import { UPSERT_SQL, COLLECTIONS_UPSERT_SQL } from "./sql";
 import { runCron } from "./cron";
 import { makeD1ReminderRepo } from "./d1-reminder-repo";
@@ -131,6 +132,9 @@ export default {
     }
     if (request.method === "POST" && url.pathname === "/api/merge") {
       return handleMerge(request, env);
+    }
+    if (request.method === "POST" && url.pathname === "/api/account/delete") {
+      return handleAccountDelete(request, env);
     }
     if (request.method === "POST" && url.pathname === "/api/collections") {
       return handleCollections(request, env);
@@ -400,6 +404,23 @@ export async function handleMerge(
   }
   const merged = await executeMerge(env.DB, ownerId, anonId);
   return new Response(JSON.stringify({ ok: true, merged }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+export async function handleAccountDelete(
+  request: Request,
+  env: Env,
+  getSession: GetSession = sessionReader(env),
+): Promise<Response> {
+  const { ownerId, authed } = await resolveOwner(getSession, request.headers, null);
+  if (!authed || !ownerId) {
+    return new Response(JSON.stringify({ error: "auth required" }), { status: 401 });
+  }
+  const stmts = buildAccountDeleteStatements(ownerId);
+  await env.DB.batch(stmts.map((s) => env.DB.prepare(s.sql).bind(...s.params)));
+  return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
