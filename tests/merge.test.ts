@@ -3,6 +3,7 @@ import {
   mergeContent,
   planPendingMerge,
   buildPendingStatements,
+  buildCollectionMerge,
   type MergeRow,
 } from "../worker/merge";
 
@@ -115,5 +116,27 @@ describe("buildPendingStatements", () => {
     expect(stmts[0].params[stmts[0].params.length - 1]).toBe("a1");
     expect(stmts[1].sql).toBe("DELETE FROM pending_capture WHERE id=? AND user_id=?");
     expect(stmts[1].params).toEqual(["n1", "anon"]);
+  });
+});
+
+describe("buildCollectionMerge", () => {
+  it("re-points all collections when there is no default collision", () => {
+    const { reelRemap, collectionOps } = buildCollectionMerge("acct", "anon", null, "anonDef");
+    expect(reelRemap).toEqual([]);
+    expect(collectionOps).toHaveLength(1);
+    expect(collectionOps[0].sql).toBe("UPDATE collections SET user_id=? WHERE user_id=?");
+    expect(collectionOps[0].params).toEqual(["acct", "anon"]);
+  });
+
+  it("collapses two defaults: folds anon-default reels into the account default and drops it", () => {
+    const { reelRemap, collectionOps } = buildCollectionMerge("acct", "anon", "accDef", "anonDef");
+    // reel remap moves anon-default reels to the account default, before re-point
+    expect(reelRemap[0].sql).toContain("UPDATE pending_capture SET collection_id=?");
+    expect(reelRemap[0].params).toEqual(["accDef", "anon", "anonDef"]);
+    // re-point every anon collection EXCEPT the anon default, then delete it
+    expect(collectionOps[0].sql).toBe("UPDATE collections SET user_id=? WHERE user_id=? AND id<>?");
+    expect(collectionOps[0].params).toEqual(["acct", "anon", "anonDef"]);
+    expect(collectionOps[1].sql).toBe("DELETE FROM collections WHERE id=?");
+    expect(collectionOps[1].params).toEqual(["anonDef"]);
   });
 });

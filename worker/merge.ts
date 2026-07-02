@@ -84,6 +84,42 @@ export interface Stmt {
   params: unknown[];
 }
 
+// Collections follow their owner on merge. Non-default same-name collections
+// are left as separate rows (cosmetic dup, per spec). But the single default
+// "Saved" must stay unique: when both sides have one, fold the anon default's
+// reels into the account default and drop the anon default.
+// `reelRemap` MUST run before reels are re-pointed to the account (it matches on
+// the still-anonymous user_id).
+export function buildCollectionMerge(
+  accountId: string,
+  anonId: string,
+  accountDefaultId: string | null,
+  anonDefaultId: string | null,
+): { reelRemap: Stmt[]; collectionOps: Stmt[] } {
+  const collapse = accountDefaultId && anonDefaultId && accountDefaultId !== anonDefaultId;
+  if (collapse) {
+    return {
+      reelRemap: [
+        {
+          sql: `UPDATE pending_capture SET collection_id=? WHERE user_id=? AND collection_id=?`,
+          params: [accountDefaultId, anonId, anonDefaultId],
+        },
+      ],
+      collectionOps: [
+        {
+          sql: `UPDATE collections SET user_id=? WHERE user_id=? AND id<>?`,
+          params: [accountId, anonId, anonDefaultId],
+        },
+        { sql: `DELETE FROM collections WHERE id=?`, params: [anonDefaultId] },
+      ],
+    };
+  }
+  return {
+    reelRemap: [],
+    collectionOps: [{ sql: `UPDATE collections SET user_id=? WHERE user_id=?`, params: [accountId, anonId] }],
+  };
+}
+
 // Turn merge ops into D1 statements. Re-point and delete both guard on the anon
 // owner so a replayed merge is a no-op (idempotent) and never touches another
 // owner's rows (non-destructive).

@@ -1,6 +1,6 @@
 import { createAuth } from "./auth";
 import { resolveOwner, type SessionInfo } from "./owner";
-import { planPendingMerge, buildPendingStatements, type MergeRow } from "./merge";
+import { planPendingMerge, buildPendingStatements, buildCollectionMerge, type MergeRow } from "./merge";
 import { UPSERT_SQL, COLLECTIONS_UPSERT_SQL } from "./sql";
 import { runCron } from "./cron";
 import { makeD1ReminderRepo } from "./d1-reminder-repo";
@@ -345,11 +345,21 @@ export async function executeMerge(
   for (const r of acctRows) byUrl.set(r.canonical_url, r);
 
   const ops = planPendingMerge(anonRows, byUrl);
-  const stmts = buildPendingStatements(ops, accountId, anonId);
 
-  // Collections and push subscriptions follow their owner (§7.2, §7.6). Their
-  // ids/endpoints are globally unique PKs, so a plain re-point cannot collide.
-  stmts.push({ sql: `UPDATE collections SET user_id = ? WHERE user_id = ?`, params: [accountId, anonId] });
+  // Default-collection collapse: keep a single "Saved" default. reelRemap must
+  // precede the reel re-point (it matches on the still-anonymous user_id).
+  const accountDefault = await db.prepare(`SELECT id FROM collections WHERE user_id = ? AND is_default = 1 LIMIT 1`).bind(accountId).first<{ id: string }>();
+  const anonDefault = await db.prepare(`SELECT id FROM collections WHERE user_id = ? AND is_default = 1 LIMIT 1`).bind(anonId).first<{ id: string }>();
+  const coll = buildCollectionMerge(accountId, anonId, accountDefault?.id ?? null, anonDefault?.id ?? null);
+
+  const stmts = [
+    ...coll.reelRemap,
+    ...buildPendingStatements(ops, accountId, anonId),
+    ...coll.collectionOps,
+  ];
+
+  // Push subscriptions follow their owner (§7.6); endpoint is a unique PK so a
+  // plain re-point cannot collide.
   stmts.push({ sql: `UPDATE push_subscriptions SET user_id = ? WHERE user_id = ?`, params: [accountId, anonId] });
 
   // Settings: the account's own row is authoritative; adopt the anon row only
