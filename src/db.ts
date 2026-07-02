@@ -56,3 +56,21 @@ export async function setUserId(value: string): Promise<void> {
   const db = await openInsaveDB();
   await db.put(META_STORE, { key: "user_id", value });
 }
+
+// Re-owns this device's local reels and collections from one id to another
+// (anon -> account) so they stay visible under the new identity after a merge.
+// Local reads filter by user_id, so without this the device's own pre-merge
+// data would vanish once the stored id is swapped.
+export async function reownLocalData(fromId: string, toId: string): Promise<void> {
+  const db = await openInsaveDB();
+  for (const storeName of [PENDING_STORE, COLLECTIONS_STORE]) {
+    const tx = db.transaction(storeName, "readwrite");
+    let cursor = await tx.store.openCursor();
+    while (cursor) {
+      const value = cursor.value as { user_id?: string };
+      if (value.user_id === fromId) await cursor.update({ ...value, user_id: toId });
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+}

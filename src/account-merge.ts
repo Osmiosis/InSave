@@ -1,15 +1,19 @@
-// Post-sign-in reconciliation (PRD 08 §7.1, Task 2.6). When the user is signed
-// in but the device still holds an anonymous id, absorb this device's data into
-// the account (/api/merge), swap the stored id to the account id, then re-pull
-// the account library. Runs on load; safe to run every time — once swapped, the
-// local id equals the account id and it no-ops.
+// Post-sign-in reconciliation (PRD 08 §7, Task 2.6). When the user is signed in
+// but the device still holds an anonymous id: absorb this device's data into the
+// account (/api/merge), re-own the device's local rows to the account id, swap
+// the stored id, then pull the account's collections + reels so other devices'
+// data appears. Runs on load; once swapped the local id equals the account id
+// and it no-ops.
 import { getSession } from "./auth-client";
-import { getUserId, setUserId } from "./db";
+import { getUserId, setUserId, reownLocalData } from "./db";
 import { pullAndReconcile } from "./reminder-pull";
+import { pullCollections } from "./collections-sync";
+import { createCollectionsStore } from "./collections-store";
 
 export interface ReconcileDeps {
   getSession: () => Promise<{ user: { id: string } } | null>;
   getLocalId: () => Promise<string>;
+  reown: (fromId: string, toId: string) => Promise<void>;
   setLocalId: (id: string) => Promise<void>;
   merge: (anonId: string) => Promise<boolean>;
   refresh: () => Promise<void>;
@@ -25,8 +29,9 @@ export async function reconcileAccount(
 
   const ok = await deps.merge(localId);
   if (!ok) return "failed"; // leave the local id as-is; retry on the next load
+  await deps.reown(localId, session.user.id); // keep this device's own rows visible
   await deps.setLocalId(session.user.id);
-  await deps.refresh();
+  await deps.refresh(); // pull collections + reels from the account
   return "merged";
 }
 
@@ -34,6 +39,7 @@ function realDeps(): ReconcileDeps {
   return {
     getSession,
     getLocalId: () => getUserId(),
+    reown: (fromId, toId) => reownLocalData(fromId, toId),
     setLocalId: (id) => setUserId(id),
     merge: async (anonId) => {
       try {
@@ -48,8 +54,17 @@ function realDeps(): ReconcileDeps {
         return false;
       }
     },
-    refresh: () => pullAndReconcile(),
+    refresh: async () => {
+      const store = await createCollectionsStore();
+      await pullCollections(store);
+      await pullAndReconcile();
+    },
   };
 }
 
-if (typeof window !== "undefined") void reconcileAccount(realDeps());
+if (typeof window !== "undefined") {
+  void reconcileAccount(realDeps()).then((result) => {
+    // Re-render from the freshly reconciled local data.
+    if (result === "merged") window.location.reload();
+  });
+}

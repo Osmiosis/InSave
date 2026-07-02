@@ -9,6 +9,7 @@ export interface CollectionsStore {
   remove(id: string): Promise<void>;
   listUnsynced(): Promise<Collection[]>;
   markSynced(ids: string[]): Promise<void>;
+  upsertPulled(c: Omit<Collection, "synced">): Promise<void>;
 }
 
 export async function createCollectionsStore(
@@ -69,6 +70,11 @@ export async function createCollectionsStore(
         if (c) await tx.store.put({ ...c, synced: true });
       }
       await tx.done;
+    },
+    // Overlay a collection pulled from the server (account-authoritative), so a
+    // signed-in device sees collections created on other devices.
+    async upsertPulled(c) {
+      await db.put(COLLECTIONS_STORE, { ...c, synced: true });
     },
   };
 }
