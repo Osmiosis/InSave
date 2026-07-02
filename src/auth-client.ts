@@ -43,5 +43,12 @@ export async function signInGoogle(
 }
 
 export async function signOut(): Promise<void> {
-  await fetch(`${AUTH_BASE}/sign-out`, { method: "POST", credentials: "same-origin" });
+  // Better Auth's POST routes require a JSON content-type AND a parseable body
+  // (no body -> 400 "Invalid JSON"; wrong/no content-type -> 415).
+  await fetch(`${AUTH_BASE}/sign-out`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: "{}",
+  });
 }

@@ -49,5 +49,8 @@ describe("auth-client", () => {
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe("/api/auth/sign-out");
     expect(init?.method).toBe("POST");
+    // Better Auth POST routes need a JSON content-type AND a parseable body.
+    expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
+    expect(() => JSON.parse(String(init?.body))).not.toThrow();
   });
 });
