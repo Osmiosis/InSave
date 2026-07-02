@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { handleSync, handlePull } from "../worker/index";
+import { handleSync, handlePull, handleSubscribe } from "../worker/index";
 import { toBind } from "../worker/index";
 
 // Minimal D1 stub that records every bound statement's args.
@@ -65,5 +65,21 @@ describe("trust rule applied to endpoints", () => {
     const anon = async () => null;
     await handlePull(new Request(url), url, { DB: db } as any, anon);
     expect(db.binds[0][0]).toBe("anon1");
+  });
+
+  it("handleSubscribe owns a signed-in device's subscription to the account (§7.6)", async () => {
+    const db = mockDB();
+    const req = new Request("http://x/api/subscribe", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: "spoofed-anon",
+        subscription: { endpoint: "https://push/ep", keys: { p256dh: "p", auth: "a" } },
+      }),
+    });
+    const authed = async () => ({ user: { id: "acct1" } });
+    const res = await handleSubscribe(req, { DB: db } as any, authed);
+    expect(res.status).toBe(200);
+    // putSubscription binds (endpoint, user_id, p256dh, auth, created_at).
+    expect(db.binds[0][1]).toBe("acct1");
   });
 });

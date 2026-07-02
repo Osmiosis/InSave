@@ -256,7 +256,7 @@ async function handleCollectionsPull(
   });
 }
 
-async function handleSubscribe(
+export async function handleSubscribe(
   request: Request,
   env: Env,
   getSession: GetSession = sessionReader(env),
