@@ -761,3 +761,41 @@ Android + iPhone, which surfaced the project's biggest structural gap.
    app-flash); largely subsumed by accounts.
 4. **Verify push delivery end-to-end** now that subscriptions are live (set a fresh deadline → confirm a
    notification arrives on the phone).
+
+---
+
+## 2026-07-02 — PRD 08: Accounts (optional login + cross-context merge)
+
+Built the whole accounts system on branch `feat/accounts-prd08` (spec + plan in
+`docs/superpowers/`). Optional Google sign-in via **Better Auth** in the Worker,
+sessions/users in D1. Anonymous fast path fully preserved. **251 tests.**
+
+- **Phase 0 spike (gate, PASS):** Better Auth + D1 works. Findings: no native D1
+  adapter → bridged with `kysely-d1`; `nodejs_compat` required; entry-module can't
+  export non-function values (moved SQL consts to `worker/sql.ts`). Schema derived
+  from better-auth's `getAuthTables()`. Auth.js fallback not needed.
+- **Phase 1 — auth foundation:** `resolveOwner` trust rule (signed-in requests
+  derive owner from the session, spoofed `user_id` ignored) applied to all
+  data endpoints; Google sign-in/out UI; 30-day sticky session. Apple **deferred**
+  (needs Apple Dev Program; not mandated for a PWA).
+- **Phase 2 — merge engine (the heart):** `POST /api/merge` re-points anon rows to
+  the account; `(user_id, canonical_url)` user-scoped dedupe (migration 0001);
+  colliding reels coalesce (device content additive w/ `tagged_at` tiebreak, account
+  reminder state authoritative); idempotent, non-destructive, atomic. Client swaps
+  id + re-owns local rows + pulls on sign-in. Duplicate default "Saved" collapses to
+  one.
+- **Live-testing bugs found & fixed:** sign-out 415→400 (needed JSON body); the big
+  one — **pull was additive**, so a signed-in device hid its own pre-merge data and
+  never removed server-deleted rows. Fix: pull now **mirrors** the server (upsert +
+  delete synced-but-removed) for both collections and reels. Multi-device convergence
+  verified.
+- **Phase 3:** iOS onboarding explains the two-context truth (paste = no account;
+  Shortcut needs sign-in in **both** app and Safari); push subs follow the merge.
+- **Phase 4:** account deletion (`POST /api/account/delete`, removes owned rows +
+  better-auth records, other accounts untouched — live-verified); production release
+  checklist in `docs/superpowers/notes/2026-07-02-accounts-release-checklist.md`
+  (**rotate the Google secret**, prod OAuth/redirect, remote D1 migration order,
+  iOS session durability).
+- **Not done:** Apple provider (deferred), and the manual prod-config items in the
+  release checklist. Also note: the mirror-on-pull fix means a deleted account's
+  reels now correctly disappear from its devices on next load.

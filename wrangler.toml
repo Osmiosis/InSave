@@ -1,6 +1,8 @@
 name = "insave"
 main = "worker/index.ts"
 compatibility_date = "2024-09-23"
+# Better Auth (and the web-push lib) import node:crypto / node:async_hooks.
+compatibility_flags = ["nodejs_compat"]
 
 # Single Worker serves the static PWA (Vite build output) AND the /api/* endpoints.
 # A request that matches a built asset is served directly; anything else (e.g. /api/sync)
@@ -20,3 +22,11 @@ crons = ["0 * * * *"]
 VAPID_SUBJECT = "mailto:kgspune@gmail.com"
 VAPID_PUBLIC_KEY = "BJeDm2fJtqPlVSjnFRZOKav5k5uV5IlTszRDb8VcMTdeby9Hb461I376KRIi12oY_IkrcrQurHgAT_6NmcVi_pc"
 # VAPID_PRIVATE_KEY is set via: wrangler secret put VAPID_PRIVATE_KEY
+
+# Better Auth (PRD 08). AUTH_BASE_URL must match the origin OAuth redirects to.
+# Local dev = wrangler dev default port; override for production (Phase 4).
+AUTH_BASE_URL = "http://localhost:8787"
+# GOOGLE_CLIENT_ID: real value from the Google OAuth client (prereq P1).
+# Placeholder lets the Worker boot for the route-mount check before P1.
+GOOGLE_CLIENT_ID = "placeholder-set-in-P1"
+# GOOGLE_CLIENT_SECRET is set via: wrangler secret put GOOGLE_CLIENT_SECRET

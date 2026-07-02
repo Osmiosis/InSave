@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { COLLECTIONS_UPSERT_SQL, parseCollections } from "../worker/index";
+import { parseCollections } from "../worker/index";
+import { COLLECTIONS_UPSERT_SQL } from "../worker/sql";
 
 describe("worker collections rail", () => {
   it("upserts mutable columns on id conflict but not identity columns", () => {

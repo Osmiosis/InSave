@@ -49,3 +49,44 @@ export async function getUserId(uuid: () => string = () => crypto.randomUUID()):
   await db.put(META_STORE, { key: "user_id", value });
   return value;
 }
+
+// Overwrites the device's stored user_id — used after an account merge to swap
+// the anonymous id for the signed-in account id so all rails key on the account.
+export async function setUserId(value: string): Promise<void> {
+  const db = await openInsaveDB();
+  await db.put(META_STORE, { key: "user_id", value });
+}
+
+// Wipes this device's local library and identity (used after account deletion):
+// clears reels, collections, and settings, and drops the stored user_id so a
+// fresh anonymous id is minted on the next load.
+export async function clearLocalData(): Promise<void> {
+  const db = await openInsaveDB();
+  const tx = db.transaction(
+    [PENDING_STORE, COLLECTIONS_STORE, USER_SETTINGS_STORE, META_STORE],
+    "readwrite",
+  );
+  await tx.objectStore(PENDING_STORE).clear();
+  await tx.objectStore(COLLECTIONS_STORE).clear();
+  await tx.objectStore(USER_SETTINGS_STORE).clear();
+  await tx.objectStore(META_STORE).delete("user_id");
+  await tx.done;
+}
+
+// Re-owns this device's local reels and collections from one id to another
+// (anon -> account) so they stay visible under the new identity after a merge.
+// Local reads filter by user_id, so without this the device's own pre-merge
+// data would vanish once the stored id is swapped.
+export async function reownLocalData(fromId: string, toId: string): Promise<void> {
+  const db = await openInsaveDB();
+  for (const storeName of [PENDING_STORE, COLLECTIONS_STORE]) {
+    const tx = db.transaction(storeName, "readwrite");
+    let cursor = await tx.store.openCursor();
+    while (cursor) {
+      const value = cursor.value as { user_id?: string };
+      if (value.user_id === fromId) await cursor.update({ ...value, user_id: toId });
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+}

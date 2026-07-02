@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { UPSERT_SQL, toBind } from "../worker/index";
+import { toBind } from "../worker/index";
+import { UPSERT_SQL } from "../worker/sql";
 
 function wire(over: Record<string, unknown> = {}) {
   return {

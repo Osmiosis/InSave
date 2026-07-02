@@ -49,6 +49,19 @@ describe("runCron", () => {
     expect(sent).toEqual([]); // not surfaced this cycle
   });
 
+  it("processes a re-pointed item under the account id, never an orphaned anon id (post-merge)", async () => {
+    // After a merge the item's user_id is the account id and nothing remains
+    // under the old anonymous id, so cron groups it under the account.
+    const { repo } = fakeRepo(
+      [item({ id: "a", user_id: "account1", reminder_status: "active", cycle_count: 0, ignored_count: 0, next_due_at: NOON - DAY })],
+      [neverQuiet({ user_id: "account1" })],
+    );
+    const { sent, notify } = capturingNotify();
+    await runCron(repo, NOON, notify);
+    expect(sent).toEqual([{ userId: "account1", ids: ["a"] }]);
+    expect(sent.some((s) => s.userId !== "account1")).toBe(false);
+  });
+
   it("surfaces a due active item, advances it, and notifies", async () => {
     const { repo, itemMap } = fakeRepo(
       [item({ id: "a", reminder_status: "active", cycle_count: 0, ignored_count: 0, next_due_at: NOON - DAY })],

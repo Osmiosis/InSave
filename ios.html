@@ -22,6 +22,10 @@
       .confirm.show { display: block; }
       a.shortcut-btn { display: inline-block; background: #1e2a3a; border: 1px solid #3a5573;
                        border-radius: 8px; padding: 10px 14px; color: #b9d5f5; text-decoration: none; margin-top: 8px; }
+      .account { display: inline-flex; gap: 8px; align-items: center; }
+      .account-who { color: #8ab4ff; }
+      .account button { background: #2a2a2a; color: #eee; border: 1px solid #3a3a3a;
+                        border-radius: 6px; padding: 8px 14px; font-size: 15px; }
     </style>
   </head>
   <body>
@@ -53,15 +57,35 @@
       </section>
 
       <section class="step">
-        <h2>3. Save reels</h2>
+        <h2>3. Save reels — the no-account way</h2>
+        <p><strong>Paste a link (works today, no login):</strong> in Instagram, open a reel →
+          <strong>Share</strong> → <strong>Copy link</strong>. Then in the InSave home-screen app,
+          tap <strong>Paste a reel link</strong>. It's saved in the app and reminders work right
+          away. This is the simplest path — no account needed.</p>
+      </section>
+
+      <section class="step">
+        <h2>4. Want the one-tap Shortcut? Sign in on both places</h2>
         <div id="shortcut-slot"></div>
-        <p><strong>Or paste a link (no setup):</strong> in Instagram, open a reel →
-          <strong>Share</strong> → <strong>Copy link</strong>. In InSave, tap
-          <strong>Paste a reel link</strong>.</p>
+        <p>The Shortcut is the slick one-tap way to save — but it opens links in
+          <strong>Safari</strong>, which on iPhone is a <em>separate</em> storage space from your
+          installed home-screen app. So a Shortcut save lands under "Safari-you" and won't show in
+          the app on its own.</p>
+        <p><strong>The fix is an account.</strong> Sign in with Google
+          <strong>in both places — the installed InSave app <em>and</em> Safari</strong>. That links
+          the two into one library, so reels the Shortcut captures in Safari reconcile into your
+          account and appear in the app with reminders.</p>
+        <p>Signing in on just one place isn't enough — it has to be <strong>both</strong>. If that's
+          too fiddly, the paste-a-link method above needs no account at all.</p>
+        <p><strong>You're in Safari now — sign in here:</strong></p>
+        <span id="account" class="account"></span>
+        <p>Then open the InSave home-screen app and sign in there too, with the same account.</p>
       </section>
     </div>
 
     <script type="module" src="/src/register-sw.ts"></script>
     <script type="module" src="/src/ios-onboarding.ts"></script>
+    <script type="module" src="/src/auth-ui.ts"></script>
+    <script type="module" src="/src/account-merge.ts"></script>
   </body>
 </html>

@@ -9,6 +9,7 @@ export interface CollectionsStore {
   remove(id: string): Promise<void>;
   listUnsynced(): Promise<Collection[]>;
   markSynced(ids: string[]): Promise<void>;
+  reconcilePulled(serverCols: Array<Omit<Collection, "synced">>): Promise<void>;
 }
 
 export async function createCollectionsStore(
@@ -67,6 +68,24 @@ export async function createCollectionsStore(
       for (const id of ids) {
         const c = (await tx.store.get(id)) as Collection | undefined;
         if (c) await tx.store.put({ ...c, synced: true });
+      }
+      await tx.done;
+    },
+    // Mirror the server's collection set for this owner (account-authoritative):
+    // upsert every server collection AND delete local *synced* collections the
+    // server no longer has (e.g. a duplicate default collapsed during a merge).
+    // Unsynced local collections (not yet pushed) are preserved.
+    async reconcilePulled(serverCols) {
+      const serverIds = new Set(serverCols.map((c) => c.id));
+      const tx = db.transaction(COLLECTIONS_STORE, "readwrite");
+      for (const c of serverCols) await tx.store.put({ ...c, synced: true });
+      let cursor = await tx.store.openCursor();
+      while (cursor) {
+        const c = cursor.value as Collection;
+        if (c.user_id === userId && c.synced && !serverIds.has(c.id)) {
+          await cursor.delete();
+        }
+        cursor = await cursor.continue();
       }
       await tx.done;
     },

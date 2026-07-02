@@ -29,6 +29,8 @@
       .toast.show { display: block; }
       .ios-banner { display: block; margin: 8px 20px 0; padding: 10px 14px; background: #1e2a3a;
                     border: 1px solid #3a5573; border-radius: 8px; color: #b9d5f5; text-decoration: none; font-size: 14px; }
+      .account { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+      .account-who { color: #8ab4ff; font-size: 14px; }
     </style>
   </head>
   <body>
@@ -39,6 +41,7 @@
         <a href="/review.html">Review</a>
         <a href="/cleanup.html">Tidy Saved</a>
         <button id="enable-reminders">Enable reminders</button>
+        <span id="account" class="account"></span>
       </nav>
     </header>
     <a id="ios-banner" class="ios-banner" href="/ios.html" hidden>📱 On iPhone? Finish setup →</a>
@@ -51,6 +54,8 @@
     <script type="module" src="/src/push-enable.ts"></script>
     <script type="module" src="/src/register-sw.ts"></script>
     <script type="module" src="/src/collections-home.ts"></script>
+    <script type="module" src="/src/auth-ui.ts"></script>
+    <script type="module" src="/src/account-merge.ts"></script>
     <script type="module" src="/src/clipboard-capture.ts"></script>
     <script type="module" src="/src/ios-banner.ts"></script>
   </body>
