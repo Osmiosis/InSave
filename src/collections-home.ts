@@ -1,6 +1,7 @@
 import { createCollectionsStore } from "./collections-store";
 import { createPendingStore } from "./pending-store";
 import { drainAll } from "./drain-all";
+import { syncDownIfSignedIn } from "./sync-down";
 import { planCollectionDelete, type DeleteChoice } from "./collection-delete";
 import type { Collection, PendingCapture } from "./types";
 
@@ -39,6 +40,10 @@ async function main(): Promise<void> {
   const pendingStore = await createPendingStore();
   const saved = (await collectionsStore.list()).find((c) => c.is_default)!;
   drainAll(pendingStore, collectionsStore).catch(() => {});
+  // When signed in, pull the account library so saves from other devices show.
+  syncDownIfSignedIn(collectionsStore)
+    .then((pulled) => { if (pulled) render(); })
+    .catch(() => {});
 
   const drain = () => { drainAll(pendingStore, collectionsStore).catch(() => {}); };
 
